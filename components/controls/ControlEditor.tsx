@@ -217,9 +217,9 @@ export function ControlEditor({
               }}
               style={{ display: "grid", gap: 16, alignContent: "start" }}
             >
-              <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
-                <legend className="label" style={{ marginBottom: 6 }}>Type</legend>
-                <select className="input" value={type} onChange={(e) => setType(e.target.value)} aria-describedby="type-help">
+              <div className="field">
+                <label htmlFor="ctl-type">Type</label>
+                <select id="ctl-type" className="input" value={type} onChange={(e) => setType(e.target.value)} aria-describedby="type-help">
                   {types.map((t) => (
                     <option key={t.type} value={t.type}>
                       {t.label}
@@ -229,7 +229,7 @@ export function ControlEditor({
                 <div id="type-help" className="hint muted" style={{ fontSize: 12 }}>
                   {TYPES.find((t) => t.type === type)?.help}
                 </div>
-              </fieldset>
+              </div>
 
               {type === "ROLLING_RESERVE" ? (
                 <>

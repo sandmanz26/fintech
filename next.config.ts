@@ -26,6 +26,8 @@ const config: NextConfig = {
   serverExternalPackages: ["pg-boss", "pino"],
   eslint: { ignoreDuringBuilds: true },
   devIndicators: false,
+  // E2E builds into its own folder so it can run next to `next dev`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
