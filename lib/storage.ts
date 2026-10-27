@@ -9,7 +9,9 @@ export interface StorageAdapter {
   exists(key: string): Promise<boolean>;
 }
 
-const root = path.resolve(process.env.STORAGE_DIR ?? "./storage");
+// Serverless hosts (Vercel) only allow writes under /tmp, and it does not survive a cold start:
+// fine for a demo, not for production documents.
+const root = path.resolve(process.env.STORAGE_DIR ?? (process.env.VERCEL ? "/tmp/sentinel-storage" : "./storage"));
 
 function safePath(key: string) {
   const p = path.resolve(root, key);

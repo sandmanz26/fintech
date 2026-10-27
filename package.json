@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -22,7 +23,8 @@
     "worker": "tsx jobs/worker.ts",
     "demo:advance-day": "tsx jobs/advance-day.ts",
     "test:integration": "vitest run -c vitest.integration.config.ts",
-    "seed:template": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_tpl?schema=public sh -c \"prisma migrate deploy && tsx prisma/seed.ts\""
+    "seed:template": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_tpl?schema=public sh -c \"prisma migrate deploy && tsx prisma/seed.ts\"",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
