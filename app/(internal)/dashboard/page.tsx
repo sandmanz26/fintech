@@ -11,6 +11,10 @@ import { BandPill, SeverityPill, SlaText } from "@/components/ui/badges";
 import { RowLink } from "@/components/ui/RowLink";
 import { CONTROL_LABEL } from "@/lib/domain/controls/text";
 import { MarkRead } from "@/components/shell/MarkRead";
+import { portfolioSummary } from "@/lib/queries/portfolio";
+import { formatMoney } from "@/lib/money";
+import { fmtPct } from "@/lib/format";
+import { Avatar } from "@/components/ui/badges";
 
 export const metadata = { title: "Dashboard" };
 
@@ -34,11 +38,25 @@ export default async function Dashboard() {
     db.approvalRequest.findMany({ where: { requestedById: user.id, status: "PENDING" } }),
   ]);
   const breached = mine.filter((c) => c.slaDueAt < at);
+  // Managers unblock the team and watch exposure; give them both on the first screen.
+  const manager = user.role === "RISK_MANAGER" || user.role === "COMPLIANCE";
+  const [team, pulse] = manager
+    ? await Promise.all([
+        db.case.findMany({
+          where: { status: { in: OPEN_CASE_STATES }, type: { not: "OFFBOARDING" }, slaDueAt: { lt: new Date(at.getTime() + 2 * 3_600_000) }, ...(user.role === "COMPLIANCE" ? { type: "WATCHLIST" as const } : {}) },
+          include: { merchant: { select: { dbaName: true, legalName: true } } },
+          orderBy: { slaDueAt: "asc" },
+          take: 6,
+        }),
+        portfolioSummary(),
+      ])
+    : [[], null];
   const merchants = new Map((await db.merchant.findMany({ where: { id: { in: approvals.map((a) => a.merchantId).filter(Boolean) as string[] } }, select: { id: true, dbaName: true, legalName: true } })).map((m) => [m.id, m.dbaName ?? m.legalName]));
   const users = new Map((await db.user.findMany({ select: { id: true, name: true } })).map((u) => [u.id, u.name]));
 
   const parts: string[] = [];
-  if (works) parts.push(breached.length ? `${breached.length} of your ${mine.length} cases ${breached.length === 1 ? "is" : "are"} past SLA` : mine.length ? `${mine.length} cases are yours, none past SLA` : "No cases are assigned to you");
+  if (manager && team.length) parts.push(`${team.length}${team.length === 6 ? "+" : ""} team case${team.length === 1 ? "" : "s"} past or near SLA`);
+  if (works && !manager) parts.push(breached.length ? `${breached.length} of your ${mine.length} cases ${breached.length === 1 ? "is" : "are"} past SLA` : mine.length ? `${mine.length} cases are yours, none past SLA` : "No cases are assigned to you");
   if (approvals.length) parts.push(`${approvals.length} approval${approvals.length === 1 ? "" : "s"} wait${approvals.length === 1 ? "s" : ""} for you`);
   if (std + enh) parts.push(`${std + enh} application${std + enh === 1 ? "" : "s"} to decide`);
   if (hits) parts.push(`${hits} watchlist match${hits === 1 ? "" : "es"} to review`);
@@ -56,6 +74,13 @@ export default async function Dashboard() {
 
       <div className="grid-2-1">
         <div className="col">
+          {pulse ? (
+            <div className="kpis" data-testid="dash-pulse">
+              <div className="kpi"><div className="kpi-label">Exposure covered</div><div className="kpi-value num">{fmtPct(pulse.totals.exposure ? Number((pulse.totals.reserve * 1000n) / pulse.totals.exposure) / 1000 : 0, 0)}</div><div className="kpi-sub money">{formatMoney(pulse.totals.reserve, "USD", { compact: true })} of {formatMoney(pulse.totals.exposure, "USD", { compact: true })}</div></div>
+              <div className="kpi"><div className="kpi-label">Near the network line</div><div className="kpi-value num" style={{ color: pulse.network.some((n) => n.share >= 0.8) ? "var(--negative)" : undefined }}>{pulse.network.filter((n) => n.share >= 0.8).length}</div><div className="kpi-sub">80% or more of {fmtPct(pulse.threshold, 1)}</div></div>
+              <div className="kpi"><div className="kpi-label">Cases within SLA</div><div className="kpi-value num">{(() => { const o = pulse.queue.reduce((a, q) => a + q.open, 0); return o ? fmtPct(pulse.queue.reduce((a, q) => a + q.inSla, 0) / o, 0) : "—"; })()}</div><div className="kpi-sub">target 90% · <Link className="link" href="/reports">Portfolio</Link></div></div>
+            </div>
+          ) : null}
           {approvals.length ? (
             <section className="panel flush" aria-labelledby="ap-h" data-testid="dash-approvals">
               <header><h2 id="ap-h">Waiting for your approval</h2><Link className="link meta" href="/approvals">All</Link></header>
@@ -73,7 +98,31 @@ export default async function Dashboard() {
               </div>
             </section>
           ) : null}
-          {works ? (
+          {manager ? (
+            <section className="panel flush" aria-labelledby="team-h">
+              <header><h2 id="team-h">Team cases past or near SLA</h2><Link className="link meta" href="/queues/breaching-sla">All</Link></header>
+              {team.length ? (
+                <div className="table-wrap" style={{ marginTop: 8 }}>
+                  <table className="data responsive-table" data-keynav>
+                    <thead><tr><th style={{ width: "40%" }}>Merchant</th><th>Priority</th><th>SLA</th><th>Owner</th></tr></thead>
+                    <tbody>
+                      {team.map((c) => (
+                        <RowLink key={c.id} href={`/cases/${c.id}`}>
+                          <td><Link className="link" href={`/cases/${c.id}`} tabIndex={-1}>{c.merchant.dbaName ?? c.merchant.legalName}</Link><span className="sub">{c.title ?? humanize(c.type)}</span></td>
+                          <td><SeverityPill severity={c.priority} /></td>
+                          <td data-line2><SlaText due={c.slaDueAt} now={at} /></td>
+                          <td data-hide-phone>{c.assigneeId ? <span className="row-gap" style={{ flexWrap: "nowrap" }}><Avatar name={users.get(c.assigneeId) ?? "?"} size={20} />{users.get(c.assigneeId)}</span> : <span className="muted">Unassigned</span>}</td>
+                        </RowLink>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "8px 20px 20px" }}><div className="empty">Every open case is inside its SLA.</div></div>
+              )}
+            </section>
+          ) : null}
+          {works && !(manager && mine.length === 0) ? (
             <section className="panel flush" aria-labelledby="my-h">
               <header><h2 id="my-h">Your cases</h2><Link className="link meta" href="/queues/my-work">All {mine.length}</Link></header>
               {mine.length ? (

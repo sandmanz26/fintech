@@ -197,7 +197,8 @@ textarea.input { height: auto; min-height: 76px; padding: 8px 10px; resize: vert
 .tabs [aria-selected="true"], .tabs [aria-current="page"] { color: var(--text); font-weight: 500; }
 .tabs [aria-selected="true"]::after, .tabs [aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--text); }
 .tabs .count { margin-left: 6px; color: var(--muted); font-weight: 400; }
-.segmented { display: inline-flex; width: max-content; padding: 2px; border-radius: 8px; background: var(--active); }
+.segmented { display: inline-flex; width: max-content; max-width: 100%; overflow-x: auto; padding: 2px; border-radius: 8px; background: var(--active); }
+.segmented button, .segmented a { white-space: nowrap; flex: none; }
 .segmented button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); }
 .segmented a { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 6px; color: var(--muted); }

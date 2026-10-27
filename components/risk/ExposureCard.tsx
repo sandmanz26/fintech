@@ -45,7 +45,7 @@ export function ExposureCard({ e, action }: { e: Exposure; action?: React.ReactN
       <div style={{ margin: "10px 0 4px", position: "relative", height: 12, display: "flex", gap: 2 }} role="img" aria-label={`Future delivery ${m(e.futureDelivery)}, dispute exposure ${m(e.disputeExposure)}, reserve ${m(e.reserveBalance)}`}>
         {total ? (
           <>
-            <div style={{ flex: Math.max(0.001, fdPct), background: "var(--active)", borderRadius: 2 }} />
+            <div style={{ flex: Math.max(0.001, fdPct), background: "var(--chart-muted)", borderRadius: 2 }} />
             <div style={{ flex: Math.max(0.001, 100 - fdPct), background: "var(--rule)", borderRadius: 2, boxShadow: "inset 0 0 0 1px var(--border)" }} />
             <div style={{ position: "absolute", left: 0, top: 3, height: 6, width: `${covPct}%`, background: "var(--data)", borderRadius: 2 }} />
           </>
@@ -60,7 +60,7 @@ export function ExposureCard({ e, action }: { e: Exposure; action?: React.ReactN
         </dt>
         <dd className="money">{m(e.adv)}</dd>
         <dt>
-          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--active)", marginRight: 6, boxShadow: "inset 0 0 0 1px var(--control)" }} />
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--chart-muted)", marginRight: 6 }} />
           Future delivery
           <div className="meta">{e.formulas.futureDelivery}</div>
         </dt>

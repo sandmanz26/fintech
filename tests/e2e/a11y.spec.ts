@@ -35,7 +35,7 @@ for (const theme of ["light", "dark"] as const) {
     for (const p of pages) {
       await page.goto(p);
       await page.waitForLoadState("networkidle");
-      const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      const r = await new AxeBuilder({ page: page as never }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       for (const v of r.violations.filter((v) => v.impact === "serious" || v.impact === "critical")) {
         problems.push(`${p}: ${v.id} (${v.impact}) ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`);
       }
@@ -48,7 +48,7 @@ test("axe: merchant portal on a phone", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   await page.goto("/portal/rfi/this-token-does-not-exist-this-token-does-not");
-  const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  const r = await new AxeBuilder({ page: page as never }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
   await ctx.close();
 });

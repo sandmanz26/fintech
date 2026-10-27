@@ -42,7 +42,9 @@ export default async function PortfolioPage() {
         <div className="kpi"><div className="kpi-label">Near the network line</div><div className="kpi-value num" style={{ color: over80.length ? "var(--negative)" : undefined }}>{over80.length}</div><div className="kpi-sub">at 80% or more of {fmtPct(p.threshold, 1)}</div></div>
       </div>
 
-      <div className="grid-2-1" style={{ marginBottom: 16 }}>
+
+
+      <div className="grid-2-1" style={{ marginBottom: 16, alignItems: "stretch" }}>
         <section className="panel" aria-labelledby="exp-h">
           <header>
             <div>
@@ -70,36 +72,19 @@ export default async function PortfolioPage() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td style={{ fontWeight: 600, borderTop: "1px solid var(--border)" }}>Total</td>
+                <td className="n num" style={{ borderTop: "1px solid var(--border)" }}>{p.totals.merchants}</td>
+                <td style={{ borderTop: "1px solid var(--border)" }} />
+                <td className="n money" style={{ fontWeight: 600, borderTop: "1px solid var(--border)" }}>{m(p.totals.exposure)}</td>
+                <td className="n money" style={{ fontWeight: 600, borderTop: "1px solid var(--border)" }}>{m(p.totals.reserve)}</td>
+                <td className="n num" style={{ fontWeight: 600, borderTop: "1px solid var(--border)" }}>{fmtPct(coverage, 0)}</td>
+              </tr>
+            </tfoot>
           </table>
+          <p className="meta" style={{ margin: "10px 0 0" }}>Exposure per merchant = ADV × delivery days + ADV × {"dispute window"} × (chargeback + refund rate), the same formula as each merchant&apos;s calculator.</p>
         </section>
-
-        <section className="panel" aria-labelledby="band-h">
-          <header>
-            <div>
-              <h2 id="band-h">Merchants by band</h2>
-              <div className="meta">From assessment history</div>
-            </div>
-          </header>
-          <table className="data" style={{ marginLeft: -20, marginRight: -20, width: "calc(100% + 40px)" }}>
-            <thead><tr><th>Band</th>{p.trend.map((t) => <th key={t.daysAgo} className="n">{t.daysAgo ? `${t.daysAgo} d ago` : "Today"}</th>)}</tr></thead>
-            <tbody>
-              {p.bands.map((b) => (
-                <tr key={b.band}>
-                  <td><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: BAND_FILL[b.band], boxShadow: "inset 0 0 0 1px var(--control)", marginRight: 8 }} />{humanize(b.band)}</td>
-                  {p.trend.map((t, i) => {
-                    const v = t.counts[b.band];
-                    const prev = i ? p.trend[i - 1].counts[b.band] : v;
-                    return <td key={t.daysAgo} className="n num" style={{ fontWeight: i === p.trend.length - 1 ? 600 : 400 }}>{v}{i && v !== prev ? <span className="meta"> ({v > prev ? "+" : ""}{v - prev})</span> : null}</td>;
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="meta" style={{ marginTop: 8 }}>Volume, 30 days: {p.bands.map((b) => `${humanize(b.band)} ${formatMoney(b.volume30, p.currency, { compact: true })}`).join(" · ")}</div>
-        </section>
-      </div>
-
-      <div className="grid-2-1" style={{ marginBottom: 16 }}>
         <section className="panel" aria-labelledby="net-h" data-testid="network-watchlist">
           <header>
             <div>
@@ -109,27 +94,54 @@ export default async function PortfolioPage() {
           </header>
           {p.network.length ? (
             <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {p.network.slice(0, 8).map((n) => (
-                <li key={n.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr) 92px", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid var(--rule)" }}>
-                  <Link className="link truncate" href={`/merchants/${n.id}`}>{n.name}</Link>
-                  <div aria-hidden style={{ position: "relative", height: 8, background: "var(--rule)", borderRadius: 2 }}>
-                    <div style={{ height: 8, width: `${Math.min(100, (n.share / 1.25) * 100)}%`, background: n.share >= 0.8 ? "var(--negative)" : "var(--chart-muted)", borderRadius: 2 }} />
-                    {[0.5, 0.8, 1].map((t) => (
-                      <span key={t} style={{ position: "absolute", left: `${(t / 1.25) * 100}%`, top: -3, width: 1, height: 14, background: t === 1 ? "var(--text)" : "var(--control)" }} />
-                    ))}
-                  </div>
-                  <span className="num" style={{ textAlign: "right" }}>
-                    {fmtPct(n.ratio)} <span className="meta">{Math.round(n.share * 100)}%</span>
-                  </span>
-                </li>
-              ))}
+              {p.network.slice(0, 6).map((n) => {
+                const watched = n.share >= 0.5;
+                return (
+                  <li key={n.id} style={{ padding: "8px 0", borderTop: "1px solid var(--rule)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <Link className="link truncate" href={`/merchants/${n.id}`} style={{ color: watched ? undefined : "var(--muted)", fontWeight: watched ? 500 : 400 }}>{n.name}</Link>
+                      <span className="num" style={{ flex: "none" }}>{fmtPct(n.ratio)} <span className="meta">{Math.round(n.share * 100)}% of line</span></span>
+                    </div>
+                    <div aria-hidden style={{ position: "relative", height: 6, marginTop: 6, background: "var(--rule)", borderRadius: 2 }}>
+                      <div style={{ height: 6, width: `${Math.min(100, (n.share / 1.25) * 100)}%`, background: n.share >= 0.8 ? "var(--negative)" : watched ? "var(--text)" : "var(--chart-muted)", borderRadius: 2 }} />
+                      {[0.5, 0.8, 1].map((t) => (
+                        <span key={t} style={{ position: "absolute", left: `${(t / 1.25) * 100}%`, top: -3, width: 1, height: 12, background: t === 1 ? "var(--text)" : "var(--control)" }} />
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           ) : (
-            <div className="empty">No merchant is at half the network line or above.</div>
+            <div className="empty">No merchant has 10 or more chargebacks in 30 days.</div>
           )}
-          <div className="meta" style={{ marginTop: 8 }}>Ticks at 50%, 80% and 100% of the line.</div>
+          <div className="meta" style={{ marginTop: 8 }}>Ticks at 50%, 80% and 100% of the line. Below 50% in grey, for reference.</div>
         </section>
-
+      </div>
+      <div className="grid-1-1" style={{ marginBottom: 16, alignItems: "stretch" }}>
+        <section className="panel" aria-labelledby="band-h">
+          <header>
+            <div>
+              <h2 id="band-h">Merchants by band</h2>
+              <div className="meta">From assessment history</div>
+            </div>
+          </header>
+          <table className="data" style={{ marginLeft: -20, marginRight: -20, width: "calc(100% + 40px)" }}>
+            <thead><tr><th>Band</th>{p.trend.map((t) => <th key={t.daysAgo} className="n">{t.daysAgo ? `${t.daysAgo} d ago` : "Today"}</th>)}<th className="n">Change</th></tr></thead>
+            <tbody>
+              {p.bands.map((b) => (
+                <tr key={b.band}>
+                  <td style={{ whiteSpace: "nowrap" }}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: BAND_FILL[b.band], boxShadow: "inset 0 0 0 1px var(--control)", marginRight: 8 }} />{humanize(b.band)}</td>
+                  {p.trend.map((t, i) => (
+                    <td key={t.daysAgo} className="n num" style={{ fontWeight: i === p.trend.length - 1 ? 600 : 400 }}>{t.counts[b.band]}</td>
+                  ))}
+                  <td className="n num muted">{(() => { const d = p.trend.at(-1)!.counts[b.band] - p.trend[0].counts[b.band]; return d === 0 ? "—" : `${d > 0 ? "+" : ""}${d}`; })()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="meta" style={{ marginTop: 8 }}>Volume, 30 days: {p.bands.map((b) => `${humanize(b.band)} ${formatMoney(b.volume30, p.currency, { compact: true })}`).join(" · ")}</div>
+        </section>
         <section className="panel" aria-labelledby="q-h">
           <header><h2 id="q-h">Queue health</h2><Link className="link meta" href="/queues/breaching-sla">Breaching SLA</Link></header>
           <table className="data" style={{ marginLeft: -20, marginRight: -20, width: "calc(100% + 40px)" }}>
@@ -148,15 +160,14 @@ export default async function PortfolioPage() {
           <div className="meta" style={{ marginTop: 8 }}>Target: 90% of cases closed within SLA.</div>
         </section>
       </div>
-
-      <div className="grid-2-1">
+      <div className="grid-2-1" style={{ alignItems: "stretch" }}>
         <section className="panel flush" aria-labelledby="rp-h">
-          <header><h2 id="rp-h">Rule performance</h2><Link className="link meta" href="/rules">Rules</Link></header>
+          <header><h2 id="rp-h">Rule performance</h2><Link className="link meta" href="/rules">All {p.rules.length} rules</Link></header>
           <div className="table-wrap" style={{ marginTop: 8 }}>
             <table className="data">
               <thead><tr><th>Rule</th><th className="n">Alerts</th><th className="n">Dismissed</th><th className="n">Led to action</th></tr></thead>
               <tbody>
-                {p.rules.map((r) => {
+                {[...p.rules].sort((a, b) => (b.stats?.total ?? 0) - (a.stats?.total ?? 0)).slice(0, 6).map((r) => {
                   const s = r.stats;
                   const reviewed = s ? s.total - s.open : 0;
                   return (

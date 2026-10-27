@@ -59,7 +59,7 @@ export async function portfolioSummary() {
     b.reserve += reserve;
     const ratio = settled ? cb / settled : 0;
     // Materiality floor of 10 chargebacks, as in R-CB-NETWORK-PROX.
-    if (settled && ratio >= threshold * 0.5 && cb >= 10) network.push({ id: m.id, name: m.dbaName ?? m.legalName, band: m.currentBand, ratio, chargebacks: cb, share: ratio / threshold });
+    if (settled && cb >= 10) network.push({ id: m.id, name: m.dbaName ?? m.legalName, band: m.currentBand, ratio, chargebacks: cb, share: ratio / threshold });
   }
   network.sort((x, y) => y.ratio - x.ratio);
 

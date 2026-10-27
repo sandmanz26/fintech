@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
 import { TimeSeries } from "@/components/charts/TimeSeries";
@@ -212,7 +213,7 @@ export function RuleEditor({
                   </select>
                 </div>
                 {model.leaves.map((l, i) => (
-                  <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.6fr) 64px minmax(0,1.6fr) 32px", gap: 6, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--rule)" }}>
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.5fr) 68px minmax(0,1.7fr) 32px", gap: 6, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--rule)" }}>
                     <select aria-label="Metric" className="input" style={{ height: 32 }} value={l.metric} onChange={(e) => setLeaf(i, { metric: e.target.value as MetricKey })}>
                       {METRIC_KEYS.map((k) => (
                         <option key={k} value={k}>{METRICS[k].label}</option>
@@ -227,7 +228,7 @@ export function RuleEditor({
                       <div className="row-gap" style={{ flexWrap: "nowrap", gap: 4 }}>
                         <input aria-label="Value" className="input num" style={{ height: 32, textAlign: "right" }} value={l.value} onChange={(e) => setLeaf(i, { value: e.target.value })} />
                         <span className="muted" style={{ width: 12 }}>{suffix(l.metric)}</span>
-                        <button className="link meta" type="button" onClick={() => setLeaf(i, { kind: "factor", factor: "2", ref: l.metric })} title="Compare with another metric">× metric</button>
+                        <button className="link meta" style={{ whiteSpace: "nowrap" }} type="button" onClick={() => setLeaf(i, { kind: "factor", factor: "2", ref: l.metric })} title="Compare with a multiple of another metric">vs metric</button>
                       </div>
                     ) : (
                       <div className="row-gap" style={{ flexWrap: "nowrap", gap: 4 }}>
@@ -238,10 +239,10 @@ export function RuleEditor({
                             <option key={k} value={k}>{METRICS[k].label}</option>
                           ))}
                         </select>
-                        <button className="link meta" type="button" onClick={() => setLeaf(i, { kind: "const", value: "0" })}>value</button>
+                        <button className="link meta" style={{ whiteSpace: "nowrap" }} type="button" onClick={() => setLeaf(i, { kind: "const", value: "0" })} title="Compare with a fixed value">vs value</button>
                       </div>
                     )}
-                    <button type="button" className="btn ghost sm" aria-label="Remove condition" disabled={model.leaves.length === 1} onClick={() => setModel({ ...model, leaves: model.leaves.filter((_, j) => j !== i) })}>×</button>
+                    <button type="button" className="btn ghost sm" aria-label="Remove condition" title="Remove condition" disabled={model.leaves.length === 1} onClick={() => setModel({ ...model, leaves: model.leaves.filter((_, j) => j !== i) })}><Trash2 /></button>
                   </div>
                 ))}
                 <button type="button" className="btn sm" style={{ marginTop: 6 }} onClick={() => setModel({ ...model, leaves: [...model.leaves, { metric: "cb_ratio_30d", op: ">=", kind: "const", value: "1", factor: "1", ref: "cb_ratio_30d" }] })}>Add condition</button>

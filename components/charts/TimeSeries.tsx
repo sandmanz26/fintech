@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceDot } from "recharts";
 import { niceTicks, axisLabel, valueLabel, shortDate, type Fmt } from "./scale";
 
@@ -34,6 +34,15 @@ export function TimeSeries({
   highlightFrom?: string;
 }) {
   const [table, setTable] = useState(false);
+  // Labels need room: on a narrow plot space them three times further apart.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   const id = useId();
   const max = Math.max(0, ...data.map((d) => Math.max(d.value ?? 0, d.compare ?? 0)), reference?.value ?? 0);
   const ticks = useMemo(() => niceTicks(max, 4), [max]);
@@ -53,7 +62,7 @@ export function TimeSeries({
   const labelled = new Set<string>();
   {
     const idx = new Map(data.map((p, i) => [p.date, i]));
-    const gap = Math.max(1, Math.round(data.length / 7));
+    const gap = Math.max(1, Math.round(data.length / (narrow ? 2.5 : 7)));
     let last = -Infinity;
     for (const [d] of shownMarkers) {
       const i = idx.get(d)!;
