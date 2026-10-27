@@ -1,0 +1,37 @@
+import { db, type Tx } from "@/lib/db";
+import { record, type Actor } from "@/lib/domain/audit";
+import { PolicyParamsSchema, type PolicyParams } from "./types";
+
+export type ActivePolicy = { version: number; params: PolicyParams; activeFrom: Date };
+
+/** The newest policy version whose activeFrom has passed. */
+export async function getActivePolicy(tx: Tx = db): Promise<ActivePolicy> {
+  const p = await tx.policy.findFirst({ where: { activeFrom: { lte: new Date() } }, orderBy: { version: "desc" } });
+  if (!p) throw new Error("No policy configured. Run the seed.");
+  return { version: p.version, params: PolicyParamsSchema.parse(p.params), activeFrom: p.activeFrom };
+}
+
+export async function getPolicyVersion(version: number, tx: Tx = db): Promise<ActivePolicy | null> {
+  const p = await tx.policy.findUnique({ where: { version } });
+  return p ? { version: p.version, params: PolicyParamsSchema.parse(p.params), activeFrom: p.activeFrom } : null;
+}
+
+/** Policies are append-only: a change is a new version; old assessments keep pointing at theirs. */
+export async function createPolicyVersion(actor: Actor, params: unknown, changeNote: string) {
+  const parsed = PolicyParamsSchema.parse(params);
+  return db.$transaction(async (tx) => {
+    const last = await tx.policy.findFirst({ orderBy: { version: "desc" } });
+    const version = (last?.version ?? 0) + 1;
+    const created = await tx.policy.create({
+      data: { version, params: parsed as never, changeNote, activeFrom: new Date(), createdById: actor.id ?? "system" },
+    });
+    await record(tx, actor, {
+      action: "POLICY_VERSION_CREATED",
+      entityType: "Policy",
+      entityId: String(version),
+      before: last ? { version: last.version } : null,
+      after: { version, changeNote },
+    });
+    return created;
+  });
+}

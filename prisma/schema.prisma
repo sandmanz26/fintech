@@ -1,0 +1,505 @@
+// Sentinel — merchant risk lifecycle workspace.
+// Money: BigInt minor units + ISO 4217 currency. Time: UTC.
+// Additions beyond PRD §5.2 are marked "(+)" and explained in DECISIONS.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ANALYST
+  SENIOR_ANALYST
+  RISK_MANAGER
+  COMPLIANCE
+  AUDITOR
+  ADMIN
+  MERCHANT
+}
+
+enum MerchantStatus {
+  APPLICATION_DRAFT
+  SUBMITTED
+  IN_UNDERWRITING
+  PENDING_INFO
+  APPROVED
+  DECLINED
+  ACTIVE
+  UNDER_REVIEW
+  RESTRICTED
+  TERMINATION_PENDING
+  TERMINATED
+  CLOSED
+}
+
+enum RiskBand {
+  LOW
+  MEDIUM
+  HIGH
+  PROHIBITED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CaseStatus {
+  NEW
+  ASSIGNED
+  IN_REVIEW
+  AWAITING_MERCHANT
+  PENDING_APPROVAL
+  RESOLVED
+  REOPENED
+}
+
+enum CaseType {
+  UNDERWRITING
+  MONITORING
+  DISPUTE_SPIKE
+  WATCHLIST
+  RFI_FOLLOWUP
+  OFFBOARDING
+}
+
+enum ControlType {
+  VOLUME_LIMIT_DAILY
+  VOLUME_LIMIT_MONTHLY
+  MAX_TICKET
+  ROLLING_RESERVE
+  FIXED_RESERVE
+  UPFRONT_RESERVE
+  PAYOUT_DELAY
+  PAYOUT_HOLD
+}
+
+enum ControlStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  EXPIRED
+  REMOVED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum DeliveryModel {
+  IMMEDIATE
+  DIGITAL
+  SHIPPED
+  FUTURE_SERVICE
+  SUBSCRIPTION
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  role       Role
+  merchantId String?
+  active     Boolean  @default(true) // (+) admin can deactivate
+  createdAt  DateTime @default(now())
+}
+
+model Merchant {
+  id                         String         @id @default(cuid())
+  legalName                  String
+  dbaName                    String?
+  registrationNo             String
+  country                    String
+  mcc                        String
+  website                    String?
+  incorporatedAt             DateTime?
+  deliveryModel              DeliveryModel
+  avgDeliveryDays            Int            @default(0)
+  expectedMonthlyVolumeMinor BigInt
+  expectedAvgTicketMinor     BigInt
+  priorCbRatioBps            Int? // (+) historical chargeback ratio from prior processor, basis points
+  currency                   String         @default("USD")
+  status                     MerchantStatus @default(APPLICATION_DRAFT)
+  currentBand                RiskBand?
+  currentScore               Int?
+  assignedToId               String?
+  activatedAt                DateTime? // (+)
+  nextReviewAt               DateTime? // (+) periodic re-score due date
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+  owners                     Owner[]
+  applications               Application[]
+  documents                  Document[]
+  assessments                RiskAssessment[]
+  controls                   Control[]
+  cases                      Case[]
+  alerts                     Alert[]
+  metrics                    DailyMerchantMetric[]
+  disputes                   Dispute[]
+  reserveEntries             ReserveLedgerEntry[]
+
+  @@index([status, currentBand])
+}
+
+model Owner {
+  id              String         @id @default(cuid())
+  merchantId      String
+  fullName        String
+  dateOfBirth     DateTime?
+  nationality     String?
+  idNumber        String? // (+) national ID / passport; masked in lists
+  ownershipPct    Decimal        @db.Decimal(5, 2)
+  isController    Boolean        @default(false)
+  parentOwnerId   String? // (+) for the ownership tree (holding company -> person)
+  screeningStatus String         @default("NOT_SCREENED") // NOT_SCREENED|CLEAR|POTENTIAL_MATCH|CONFIRMED_MATCH
+  merchant        Merchant       @relation(fields: [merchantId], references: [id])
+  hits            WatchlistHit[]
+}
+
+model Application {
+  id                 String    @id @default(cuid())
+  merchantId         String
+  submittedAt        DateTime?
+  decidedAt          DateTime?
+  decision           String? // APPROVED|APPROVED_WITH_CONDITIONS|DECLINED
+  decisionReasonCode String?
+  decisionNote       String?
+  decidedById        String?
+  effectiveFrom      DateTime? // (+) when an approved merchant becomes ACTIVE
+  checklist          Json
+  checks             Json? // (+) raw adapter results: { kyb, website, watchlist }
+  merchant           Merchant  @relation(fields: [merchantId], references: [id])
+}
+
+model Document {
+  id         String    @id @default(cuid())
+  merchantId String
+  type       String // INCORPORATION|BANK_STATEMENT|ID_DOCUMENT|PROCESSING_STATEMENT|INVOICE|OTHER
+  fileKey    String
+  fileName   String? // (+)
+  mimeType   String? // (+)
+  sizeBytes  Int? // (+)
+  rfiId      String? // (+) uploaded in answer to an RFI
+  status     String    @default("PENDING_REVIEW") // PENDING_REVIEW|ACCEPTED|REJECTED|EXPIRED
+  expiresAt  DateTime?
+  uploadedBy String
+  uploadedAt DateTime  @default(now())
+  merchant   Merchant  @relation(fields: [merchantId], references: [id])
+}
+
+model RiskAssessment {
+  id            String   @id @default(cuid())
+  merchantId    String
+  policyVersion Int
+  score         Int
+  band          RiskBand
+  factors       Json // [{key,label,input,points,maxPoints,explanation}]
+  hardStops     Json // [{key,label}]
+  trigger       String // ONBOARDING|PERIODIC|EVENT|MANUAL
+  createdAt     DateTime @default(now())
+  createdById   String?
+  merchant      Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, createdAt])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  merchantId    String
+  occurredAt    DateTime
+  amountMinor   BigInt
+  currency      String
+  status        String // AUTHORIZED|DECLINED|SETTLED|REFUNDED|CHARGEBACK
+  cardCountry   String
+  cardBin       String
+  isCrossBorder Boolean
+  flags         String[] @default([]) // (+) OVER_LIMIT | OVER_MAX_TICKET
+
+  @@index([merchantId, occurredAt])
+}
+
+model DailyMerchantMetric {
+  id                    String   @id @default(cuid())
+  merchantId            String
+  date                  DateTime @db.Date
+  grossVolumeMinor      BigInt
+  settledCount          Int
+  authAttempts          Int
+  declineCount          Int
+  refundCount           Int
+  refundVolumeMinor     BigInt
+  chargebackCount       Int
+  chargebackVolumeMinor BigInt
+  avgTicketMinor        BigInt
+  crossBorderPct        Decimal  @db.Decimal(5, 2)
+  smallAuthCount        Int
+  merchant              Merchant @relation(fields: [merchantId], references: [id])
+
+  @@unique([merchantId, date])
+  @@index([date])
+}
+
+model Dispute {
+  id             String   @id @default(cuid())
+  merchantId     String
+  transactionId  String
+  amountMinor    BigInt
+  reasonCategory String // FRAUD|NOT_RECEIVED|NOT_AS_DESCRIBED|PROCESSING|OTHER
+  receivedAt     DateTime
+  status         String // OPEN|WON|LOST|ACCEPTED
+  merchant       Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, receivedAt])
+}
+
+model Rule {
+  id              String        @id @default(cuid())
+  key             String        @unique
+  name            String
+  description     String
+  activeVersionId String?
+  enabled         Boolean       @default(true)
+  versions        RuleVersion[]
+}
+
+model RuleVersion {
+  id          String   @id @default(cuid())
+  ruleId      String
+  version     Int
+  definition  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  changeNote  String
+  rule        Rule     @relation(fields: [ruleId], references: [id])
+
+  @@unique([ruleId, version])
+}
+
+model Alert {
+  id                String   @id @default(cuid())
+  merchantId        String
+  ruleVersionId     String
+  ruleKey           String // (+) denormalised for filtering and precision stats
+  severity          Severity
+  status            String   @default("OPEN") // OPEN|LINKED_TO_CASE|DISMISSED
+  dismissReasonCode String?
+  dismissNote       String? // (+)
+  evidence          Json
+  dedupeKey         String   @unique
+  caseId            String?
+  metricDate        DateTime @db.Date // (+) the metric day that fired the rule
+  createdAt         DateTime @default(now())
+  merchant          Merchant @relation(fields: [merchantId], references: [id])
+  case              Case?    @relation(fields: [caseId], references: [id])
+
+  @@index([status, severity])
+  @@index([merchantId, ruleKey])
+}
+
+model Case {
+  id             String      @id @default(cuid())
+  merchantId     String
+  type           CaseType
+  status         CaseStatus  @default(NEW)
+  priority       Severity
+  title          String? // (+) short summary for queues
+  assigneeId     String?
+  slaDueAt       DateTime
+  slaBreachedAt  DateTime? // (+) set by sla-checker
+  resolutionCode String?
+  resolutionNote String?
+  createdAt      DateTime    @default(now())
+  resolvedAt     DateTime?
+  merchant       Merchant    @relation(fields: [merchantId], references: [id])
+  events         CaseEvent[]
+  alerts         Alert[]
+
+  @@index([status, priority, slaDueAt])
+  @@index([merchantId, type, status])
+}
+
+model CaseEvent {
+  id        String   @id @default(cuid())
+  caseId    String
+  actorId   String?
+  type      String // CREATED|ASSIGNED|NOTE|STATUS_CHANGE|ALERT_LINKED|RFI_SENT|RFI_ANSWERED|CONTROL_PROPOSED|DECISION|BAND_CHANGE
+  payload   Json
+  createdAt DateTime @default(now())
+  case      Case     @relation(fields: [caseId], references: [id])
+
+  @@index([caseId, createdAt])
+}
+
+model Control {
+  id            String        @id @default(cuid())
+  merchantId    String
+  type          ControlType
+  params        Json
+  status        ControlStatus
+  reasonCode    String
+  note          String
+  effectiveFrom DateTime
+  reviewAt      DateTime
+  reviewCaseId  String? // (+) case opened when reviewAt was reached (idempotency)
+  createdById   String
+  approvalId    String?
+  caseId        String? // (+) the case it was proposed from
+  removedAt     DateTime? // (+)
+  createdAt     DateTime      @default(now()) // (+)
+  merchant      Merchant      @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, status])
+}
+
+model ReserveLedgerEntry {
+  id          String    @id @default(cuid())
+  merchantId  String
+  controlId   String
+  direction   String // HOLD|RELEASE|APPLY_TO_LOSS
+  amountMinor BigInt
+  currency    String
+  sourceDate  DateTime  @db.Date
+  releaseAt   DateTime?
+  releasedAt  DateTime? // (+) set on a HOLD once its RELEASE has been written
+  createdAt   DateTime  @default(now())
+  merchant    Merchant  @relation(fields: [merchantId], references: [id])
+
+  @@unique([controlId, direction, sourceDate]) // (+) idempotent daily holds/releases
+  @@index([merchantId, releaseAt])
+}
+
+model ApprovalRequest {
+  id            String         @id @default(cuid())
+  actionType    String // APPLY_CONTROL|TERMINATE|OVERRIDE_PROHIBITED|REMOVE_RESERVE|REMOVE_CONTROL
+  payload       Json
+  merchantId    String? // (+)
+  caseId        String? // (+)
+  summary       String? // (+) "what happens if approved", fixed at request time
+  requestedById String
+  approverRole  Role
+  status        ApprovalStatus @default(PENDING)
+  decidedById   String?
+  decisionNote  String?
+  createdAt     DateTime       @default(now())
+  decidedAt     DateTime?
+
+  @@index([status, approverRole])
+}
+
+model Rfi {
+  id                String   @id @default(cuid())
+  merchantId        String
+  caseId            String
+  token             String   @unique
+  items             Json // [{key,label,docType,required,status}]
+  messageToMerchant String
+  dueAt             DateTime
+  expiresAt         DateTime // (+) dueAt + 7 days
+  revokedAt         DateTime? // (+) once answered
+  status            String   @default("SENT") // SENT|PARTIALLY_ANSWERED|ANSWERED|OVERDUE
+  createdAt         DateTime @default(now())
+}
+
+model WatchlistHit {
+  id          String    @id @default(cuid())
+  ownerId     String
+  listName    String // SANCTIONS_MOCK|TERMINATED_MERCHANT_MOCK|PEP_MOCK
+  matchedName String
+  matchScore  Int
+  status      String    @default("PENDING_REVIEW") // PENDING_REVIEW|FALSE_POSITIVE|CONFIRMED
+  reviewedById String? // (+)
+  reviewNote  String? // (+)
+  reviewedAt  DateTime? // (+)
+  createdAt   DateTime  @default(now()) // (+)
+  owner       Owner     @relation(fields: [ownerId], references: [id])
+}
+
+// (+) Internal terminated-merchant list (mock of an industry list such as MATCH).
+model TerminatedListEntry {
+  id           String   @id @default(cuid())
+  kind         String // MERCHANT|OWNER
+  name         String
+  registrationNo String?
+  reasonCode   String
+  merchantId   String?
+  addedById    String
+  createdAt    DateTime @default(now())
+}
+
+model ReasonCode {
+  code               String  @id
+  category           String // UNDERWRITING|CONTROL|ALERT_DISMISS|CASE_RESOLUTION|TERMINATION
+  label              String
+  merchantFacingText String
+  active             Boolean @default(true)
+}
+
+model Policy {
+  id          String   @id @default(cuid())
+  version     Int      @unique
+  params      Json
+  changeNote  String   @default("") // (+)
+  activeFrom  DateTime
+  createdById String
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  occurredAt DateTime @default(now())
+  actorId    String?
+  actorRole  Role?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  prevHash   String
+  hash       String // sha256(prevHash + canonicalJSON(row without hash))
+
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+}
+
+// (+) The simulated "today" for the demo; single row id=1.
+model SimClock {
+  id    Int      @id @default(1)
+  today DateTime @db.Date
+}
+
+// (+) In-app notifications (SLA breaches, approvals waiting).
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String?
+  role      Role?
+  kind      String
+  title     String
+  href      String?
+  readAt    DateTime?
+  dedupeKey String?   @unique
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// (+) Job observability: duration and items processed per run.
+model JobRun {
+  id         String    @id @default(cuid())
+  name       String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  items      Int?
+  ok         Boolean   @default(true)
+  error      String?
+  meta       Json?
+
+  @@index([name, startedAt])
+}

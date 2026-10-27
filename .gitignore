@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env.local
+storage/*
+!storage/.gitkeep
+coverage
+playwright-report
+test-results
+*.tsbuildinfo
+next-env.d.ts
+.taste-skill
