@@ -37,7 +37,7 @@ export default async function MerchantOverview({ params }: { params: Promise<{ i
           </section>
         )}
         {hasHistory ? (
-          <MetricsChart rows={rows} markers={markers} networkThreshold={header.networkThreshold} networkLabel={header.networkLabel} />
+          <MetricsChart rows={rows} markers={markers} vampLine={header.lines.vampLine} networkLabel={header.lines.label} />
         ) : (
           <section className="panel">
             <h2>Last 90 days</h2>

@@ -20,8 +20,10 @@ export default async function MerchantLayout({ children, params }: { children: R
   const h = await merchantHeader(id);
   const { m } = h;
   const base = `/merchants/${id}`;
-  // Red only when material: the same 10-chargeback floor the network-proximity rule uses.
-  const nearNetwork = h.cbRatio !== null && h.cbRatio >= h.networkThreshold * 0.8 && h.cbCount >= 10;
+  // Red only when material: the same early-warning line and count floor the network rules use.
+  const { lines, network: n } = h;
+  const nearVamp = n.vamp30.ratio !== null && n.vamp30.ratio >= lines.vampWarning && n.vamp30.count >= lines.warningMinCount;
+  const nearEcm = n.ecmMonthToDate.ratio !== null && n.ecmMonthToDate.ratio >= lines.ecmWarning && n.ecmMonthToDate.count >= lines.warningMinCount;
   const processing = PROCESSING_STATES.includes(m.status);
   return (
     <>
@@ -48,6 +50,7 @@ export default async function MerchantLayout({ children, params }: { children: R
           canRescore={can(user.role, "merchant.rescore")}
           canTerminate={processing && can(user.role, "control.propose")}
           processing={processing}
+          profile={{ monthlyMinor: m.expectedMonthlyVolumeMinor.toString(), ticketMinor: m.expectedAvgTicketMinor.toString(), deliveryDays: m.avgDeliveryDays }}
         />
       </div>
 
@@ -59,27 +62,31 @@ export default async function MerchantLayout({ children, params }: { children: R
             {h.settled30.toLocaleString()} settled · declared {formatMoney(m.expectedMonthlyVolumeMinor, m.currency)}/mo
           </div>
         </div>
-        <div className="kpi">
-          <div className="kpi-label">Chargeback ratio, 30 days</div>
-          <div className="kpi-value num" style={{ color: nearNetwork ? "var(--negative)" : undefined }}>{fmtPct(h.cbRatio)}</div>
+        <div className="kpi" title={`${lines.label}. Visa assesses calendar months; the rolling figure warns earlier.`}>
+          <div className="kpi-label">Visa VAMP, 30 days</div>
+          <div className="kpi-value num" style={{ color: nearVamp ? "var(--negative)" : undefined }}>{fmtPct(n.vamp30.ratio)}</div>
           <div className="kpi-sub num">
-            {h.cbCount} chargebacks · network line {fmtPct(h.networkThreshold, 1)}
+            {n.vamp30.count} reports + disputes · {n.vampLastMonth.basis} {fmtPct(n.vampLastMonth.ratio)} · line {fmtPct(lines.vampLine, 1)}
+          </div>
+        </div>
+        <div className="kpi" title={`${lines.label}. Chargebacks this month over last month's Mastercard sales.`}>
+          <div className="kpi-label">Mastercard ECM, {n.ecmMonthToDate.basis}</div>
+          <div className="kpi-value num" style={{ color: nearEcm ? "var(--negative)" : undefined }}>{fmtPct(n.ecmMonthToDate.ratio)}</div>
+          <div className="kpi-sub num">
+            {n.ecmMonthToDate.count} chargebacks · {n.ecmLastMonth.basis} {fmtPct(n.ecmLastMonth.ratio)} · line {fmtPct(lines.ecmLine, 1)}
           </div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Refund ratio, 30 days</div>
-          <div className="kpi-value num">{fmtPct(h.refundRatio)}</div>
-          <div className="kpi-sub">of settled transactions</div>
+          <div className="kpi-label">Chargebacks, 30 days</div>
+          <div className="kpi-value num">{fmtPct(h.cbRatio)}</div>
+          <div className="kpi-sub num">
+            {h.cbCount} all brands · refunds {fmtPct(h.refundRatio)}
+          </div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Reserve held</div>
           <div className="kpi-value money" style={{ color: h.reserve === 0n ? "var(--muted)" : undefined }}>{formatMoney(h.reserve, m.currency)}</div>
           <div className="kpi-sub">from the reserve ledger</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Open cases</div>
-          <div className="kpi-value num">{h.openCases}</div>
-          <div className="kpi-sub">{h.openCases ? <Link className="link" href={`${base}/cases`}>View cases</Link> : "None open"}</div>
         </div>
       </div>
 

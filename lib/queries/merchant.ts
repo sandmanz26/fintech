@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { simToday } from "@/lib/clock";
 import { addDays, isoDay } from "@/lib/domain/reserves/calc";
 import { reserveBalances, merchantExposure } from "@/lib/domain/controls/service";
-import { getActivePolicy } from "@/lib/domain/policy";
+import { getActivePolicy, networkLines } from "@/lib/domain/policy";
+import { loadDayRows } from "@/lib/domain/metrics";
+import { networkFigures, networkHistoryStart } from "@/lib/domain/metrics/context";
 import { OPEN_CASE_STATES } from "@/lib/domain/caseStateMachine";
 import type { FactorResult } from "@/lib/domain/scoring";
 
@@ -14,7 +16,8 @@ export async function merchantHeader(id: string) {
   });
   if (!m) notFound();
   const today = await simToday();
-  const [agg, reserve, openCases, policy] = await Promise.all([
+  const yesterday = addDays(today, -1);
+  const [agg, reserve, openCases, policy, history] = await Promise.all([
     db.dailyMerchantMetric.aggregate({
       where: { merchantId: id, date: { gte: addDays(today, -30), lt: today } },
       _sum: { grossVolumeMinor: true, settledCount: true, chargebackCount: true, refundCount: true },
@@ -22,8 +25,10 @@ export async function merchantHeader(id: string) {
     reserveBalances(id),
     db.case.count({ where: { merchantId: id, status: { in: OPEN_CASE_STATES } } }),
     getActivePolicy(),
+    loadDayRows([id], networkHistoryStart(yesterday), yesterday),
   ]);
   const settled = agg._sum.settledCount ?? 0;
+  const lines = networkLines(policy.params);
   return {
     m,
     today,
@@ -34,8 +39,8 @@ export async function merchantHeader(id: string) {
     refundRatio: settled ? (agg._sum.refundCount ?? 0) / settled : null,
     reserve: reserve.total,
     openCases,
-    networkThreshold: policy.params.network.cbRatioThresholdBps / 10_000,
-    networkLabel: policy.params.network.label,
+    lines,
+    network: networkFigures(history.get(id) ?? [], isoDay(yesterday), lines.countFraudDisputesTwice),
     mccName: policy.params.scoring.mccNames[m.mcc] ?? `MCC ${m.mcc}`,
   };
 }
@@ -54,16 +59,26 @@ export async function metricSeries(merchantId: string, days = 90) {
   const from = addDays(today, -days);
   const rows = await db.dailyMerchantMetric.findMany({ where: { merchantId, date: { gte: from, lt: today } }, orderBy: { date: "asc" } });
   const by = new Map(rows.map((r) => [isoDay(r.date), r]));
-  const out: { date: string; volume: number; settled: number; chargebacks: number; refunds: number; cbRatio30: number | null; declines: number; attempts: number }[] = [];
-  // Rolling 30-day chargeback ratio needs 30 days before the window.
+  const out: { date: string; volume: number; settled: number; chargebacks: number; refunds: number; cbRatio30: number | null; vamp30: number | null; declines: number; attempts: number }[] = [];
+  // Rolling 30-day ratios need 30 days before the window.
+  const policy = await getActivePolicy();
+  const twice = policy.params.network.visa.countFraudDisputesTwice;
   const before = await db.dailyMerchantMetric.findMany({ where: { merchantId, date: { gte: addDays(from, -30), lt: from } } });
-  const all = [...before, ...rows].map((r) => ({ d: isoDay(r.date), s: r.settledCount, c: r.chargebackCount }));
+  const all = [...before, ...rows].map((r) => ({
+    d: isoDay(r.date),
+    s: r.settledCount,
+    c: r.chargebackCount,
+    vn: r.visaFraudReportCount + r.visaDisputeCount - (twice ? 0 : r.visaFraudOverlapCount),
+    vd: r.visaCnpSettledCount,
+  }));
   for (let i = 0; i < days; i++) {
     const d = isoDay(addDays(from, i));
     const r = by.get(d);
     const win = all.filter((x) => x.d > isoDay(addDays(new Date(`${d}T00:00:00Z`), -30)) && x.d <= d);
     const s = win.reduce((a, x) => a + x.s, 0);
     const c = win.reduce((a, x) => a + x.c, 0);
+    const vd = win.reduce((a, x) => a + x.vd, 0);
+    const vn = win.reduce((a, x) => a + x.vn, 0);
     out.push({
       date: d,
       volume: r ? Number(r.grossVolumeMinor) : 0,
@@ -71,6 +86,7 @@ export async function metricSeries(merchantId: string, days = 90) {
       chargebacks: r?.chargebackCount ?? 0,
       refunds: r?.refundCount ?? 0,
       cbRatio30: s ? c / s : null,
+      vamp30: vd ? vn / vd : null,
       declines: r?.declineCount ?? 0,
       attempts: r?.authAttempts ?? 0,
     });

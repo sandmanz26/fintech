@@ -21,6 +21,7 @@ export const CHECKLIST_DEFS: { key: string; label: string; source: string; bands
   { key: "kyb_registry", label: "Business registration matches", source: "Registry check", bands: "all" },
   { key: "ubo_complete", label: "Owners cover 75% or a controller is named", source: "Ownership", bands: "all" },
   { key: "screening_clear", label: "No unreviewed or confirmed watchlist hits", source: "Watchlist screening", bands: "all" },
+  { key: "terminated_list_inquiry", label: "Business and principals not on the terminated merchant list", source: "Terminated list (MATCH-style inquiry)", bands: "all" },
   { key: "website_policies", label: "Site live with refund policy and terms", source: "Website check", bands: "online" },
   { key: "bank_statement", label: "Three months of bank statements accepted", source: "Documents", bands: ["MEDIUM", "HIGH"] },
   { key: "processing_history", label: "Previous processing statements reviewed", source: "Documents", bands: ["HIGH"] },

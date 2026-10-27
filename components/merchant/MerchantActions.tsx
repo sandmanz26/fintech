@@ -7,17 +7,19 @@ import { MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { api, ApiError } from "@/lib/client";
 import { ControlEditor } from "@/components/controls/ControlEditor";
 import { TerminateDialog } from "./TerminateDialog";
+import { ProfileDialog, type DeclaredProfile } from "./ProfileDialog";
 import { useToast } from "@/components/ui/Toast";
 
 type Ctx = { merchantName: string; today: string; reasons: { code: string; label: string; merchantFacingText: string; category: string }[] };
 
-export function MerchantActions({ merchantId, canControl, canRescore, canTerminate, processing }: { merchantId: string; canControl: boolean; canRescore: boolean; canTerminate: boolean; processing: boolean }) {
+export function MerchantActions({ merchantId, canControl, canRescore, canTerminate, processing, profile }: { merchantId: string; canControl: boolean; canRescore: boolean; canTerminate: boolean; processing: boolean; profile: DeclaredProfile }) {
   const router = useRouter();
   const sp = useSearchParams();
   const toast = useToast();
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const [controlOpen, setControlOpen] = useState(false);
   const [termOpen, setTermOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function loadCtx() {
@@ -64,27 +66,35 @@ export function MerchantActions({ merchantId, canControl, canRescore, canTermina
           <Plus /> Add control
         </button>
       ) : null}
-      {canTerminate ? (
+      {canTerminate || (canRescore && processing) ? (
         <DropdownMenu.Root>
           <DropdownMenu.Trigger className="btn" aria-label="More actions">
             <MoreHorizontal />
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content className="menu" align="end" sideOffset={6}>
-              <DropdownMenu.Item
-                className="menu-item"
-                style={{ color: "var(--negative)" }}
-                onSelect={async () => {
-                  await loadCtx();
-                  setTermOpen(true);
-                }}
-              >
-                Propose termination…
-              </DropdownMenu.Item>
+              {canRescore && processing ? (
+                <DropdownMenu.Item className="menu-item" onSelect={() => setProfileOpen(true)} data-testid="update-profile">
+                  Update declared profile…
+                </DropdownMenu.Item>
+              ) : null}
+              {canTerminate ? (
+                <DropdownMenu.Item
+                  className="menu-item"
+                  style={{ color: "var(--negative)" }}
+                  onSelect={async () => {
+                    await loadCtx();
+                    setTermOpen(true);
+                  }}
+                >
+                  Propose termination…
+                </DropdownMenu.Item>
+              ) : null}
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       ) : null}
+      {profileOpen ? <ProfileDialog merchantId={merchantId} profile={profile} open={profileOpen} onOpenChange={setProfileOpen} /> : null}
       {ctx ? (
         <>
           <ControlEditor

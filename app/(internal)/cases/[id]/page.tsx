@@ -166,7 +166,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
               <Link className="btn" style={{ marginTop: 12 }} href={`/applications/${app.id}`}>Open the underwriting review</Link>
             ) : null}
           </section>
-          {series.some((r) => r.attempts > 0) ? <MetricsChart rows={series} markers={markers} networkThreshold={policy.params.network.cbRatioThresholdBps / 10_000} networkLabel={policy.params.network.label} /> : null}
+          {series.some((r) => r.attempts > 0) ? <MetricsChart rows={series} markers={markers} vampLine={policy.params.network.visa.merchantExcessiveBps / 10_000} networkLabel={policy.params.network.label} /> : null}
 
         <section className="panel" aria-labelledby="tl-h">
           <header>

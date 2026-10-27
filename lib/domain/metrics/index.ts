@@ -15,13 +15,15 @@ export async function computeDailyMetrics(day: Date, smallAuthThresholdMinor: bi
     INSERT INTO "DailyMerchantMetric" (
       "id","merchantId","date","grossVolumeMinor","settledCount","authAttempts","declineCount",
       "refundCount","refundVolumeMinor","chargebackCount","chargebackVolumeMinor","avgTicketMinor",
-      "crossBorderPct","smallAuthCount")
+      "crossBorderPct","smallAuthCount",
+      "visaCnpSettledCount","visaDisputeCount","visaFraudReportCount","visaFraudOverlapCount","mcSettledCount","mcChargebackCount")
     SELECT gen_random_uuid()::text, m.id, ${d}::date,
       COALESCE(t.gross, 0), COALESCE(t.settled, 0), COALESCE(t.attempts, 0), COALESCE(t.declines, 0),
       COALESCE(t.refunds, 0), COALESCE(t.refund_vol, 0), COALESCE(cb.n, 0), COALESCE(cb.vol, 0),
       CASE WHEN COALESCE(t.settled, 0) = 0 THEN 0 ELSE ROUND(t.gross / t.settled) END,
       CASE WHEN COALESCE(t.settled, 0) = 0 THEN 0 ELSE ROUND(100.0 * t.xb / t.settled, 2) END,
-      COALESCE(t.small, 0)
+      COALESCE(t.small, 0),
+      COALESCE(t.visa_cnp, 0), COALESCE(cb.visa, 0), COALESCE(fr.n, 0), COALESCE(cb.visa_overlap, 0), COALESCE(t.mc, 0), COALESCE(cb.mc, 0)
     FROM "Merchant" m
     LEFT JOIN (
       SELECT "merchantId",
@@ -32,19 +34,32 @@ export async function computeDailyMetrics(day: Date, smallAuthThresholdMinor: bi
         COUNT(*) FILTER (WHERE status = 'REFUNDED')::int AS refunds,
         COALESCE(SUM("amountMinor") FILTER (WHERE status = 'REFUNDED'), 0) AS refund_vol,
         COUNT(*) FILTER (WHERE "isCrossBorder" AND status IN ('SETTLED','REFUNDED','CHARGEBACK'))::int AS xb,
-        COUNT(*) FILTER (WHERE "amountMinor" <= ${smallAuthThresholdMinor})::int AS small
+        COUNT(*) FILTER (WHERE "amountMinor" <= ${smallAuthThresholdMinor})::int AS small,
+        COUNT(*) FILTER (WHERE "cardBrand" = 'VISA' AND NOT "isCardPresent" AND status IN ('SETTLED','REFUNDED','CHARGEBACK'))::int AS visa_cnp,
+        COUNT(*) FILTER (WHERE "cardBrand" = 'MASTERCARD' AND status IN ('SETTLED','REFUNDED','CHARGEBACK'))::int AS mc
       FROM "Transaction"
       WHERE "occurredAt" >= ${d}::date AND "occurredAt" < ${next}::date
       GROUP BY "merchantId"
     ) t ON t."merchantId" = m.id
     LEFT JOIN (
-      SELECT "merchantId", COUNT(*)::int AS n, SUM("amountMinor") AS vol
-      FROM "Dispute"
-      WHERE "receivedAt" >= ${d}::date AND "receivedAt" < ${next}::date
-      GROUP BY "merchantId"
+      -- VAMP counts card-not-present Visa disputes; ECM counts every Mastercard chargeback.
+      SELECT ds."merchantId", COUNT(*)::int AS n, SUM(ds."amountMinor") AS vol,
+        COUNT(*) FILTER (WHERE tx."cardBrand" = 'VISA' AND NOT tx."isCardPresent")::int AS visa,
+        COUNT(*) FILTER (WHERE tx."cardBrand" = 'VISA' AND NOT tx."isCardPresent" AND ds."reasonCategory" = 'FRAUD'
+          AND EXISTS (SELECT 1 FROM "FraudReport" f WHERE f."transactionId" = ds."transactionId"))::int AS visa_overlap,
+        COUNT(*) FILTER (WHERE tx."cardBrand" = 'MASTERCARD')::int AS mc
+      FROM "Dispute" ds JOIN "Transaction" tx ON tx.id = ds."transactionId"
+      WHERE ds."receivedAt" >= ${d}::date AND ds."receivedAt" < ${next}::date
+      GROUP BY ds."merchantId"
     ) cb ON cb."merchantId" = m.id
+    LEFT JOIN (
+      SELECT f."merchantId", COUNT(*)::int AS n
+      FROM "FraudReport" f JOIN "Transaction" tx ON tx.id = f."transactionId"
+      WHERE f."reportedAt" >= ${d}::date AND f."reportedAt" < ${next}::date AND f."cardBrand" = 'VISA' AND NOT tx."isCardPresent"
+      GROUP BY f."merchantId"
+    ) fr ON fr."merchantId" = m.id
     WHERE m.status IN ('ACTIVE','UNDER_REVIEW','RESTRICTED','TERMINATION_PENDING')
-       OR t."merchantId" IS NOT NULL OR cb."merchantId" IS NOT NULL
+       OR t."merchantId" IS NOT NULL OR cb."merchantId" IS NOT NULL OR fr."merchantId" IS NOT NULL
     ON CONFLICT ("merchantId","date") DO UPDATE SET
       "grossVolumeMinor" = EXCLUDED."grossVolumeMinor",
       "settledCount" = EXCLUDED."settledCount",
@@ -56,7 +71,13 @@ export async function computeDailyMetrics(day: Date, smallAuthThresholdMinor: bi
       "chargebackVolumeMinor" = EXCLUDED."chargebackVolumeMinor",
       "avgTicketMinor" = EXCLUDED."avgTicketMinor",
       "crossBorderPct" = EXCLUDED."crossBorderPct",
-      "smallAuthCount" = EXCLUDED."smallAuthCount"`;
+      "smallAuthCount" = EXCLUDED."smallAuthCount",
+      "visaCnpSettledCount" = EXCLUDED."visaCnpSettledCount",
+      "visaDisputeCount" = EXCLUDED."visaDisputeCount",
+      "visaFraudReportCount" = EXCLUDED."visaFraudReportCount",
+      "visaFraudOverlapCount" = EXCLUDED."visaFraudOverlapCount",
+      "mcSettledCount" = EXCLUDED."mcSettledCount",
+      "mcChargebackCount" = EXCLUDED."mcChargebackCount"`;
   return n;
 }
 
@@ -71,6 +92,12 @@ type RawMetric = {
   chargebackCount: number;
   crossBorderPct: Prisma.Decimal;
   smallAuthCount: number;
+  visaCnpSettledCount: number;
+  visaDisputeCount: number;
+  visaFraudReportCount: number;
+  visaFraudOverlapCount: number;
+  mcSettledCount: number;
+  mcChargebackCount: number;
 };
 
 export function toDayRow(m: RawMetric): DayRow {
@@ -86,6 +113,12 @@ export function toDayRow(m: RawMetric): DayRow {
     chargebacks: m.chargebackCount,
     crossBorderPct: Number(m.crossBorderPct),
     smallAuth: m.smallAuthCount,
+    visaCnp: m.visaCnpSettledCount,
+    visaDisputes: m.visaDisputeCount,
+    visaFraud: m.visaFraudReportCount,
+    visaOverlap: m.visaFraudOverlapCount,
+    mcSettled: m.mcSettledCount,
+    mcCb: m.mcChargebackCount,
   };
 }
 

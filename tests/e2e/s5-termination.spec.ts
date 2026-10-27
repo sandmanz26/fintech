@@ -21,7 +21,11 @@ test("S5: termination, compliance approval, dispute window, reconciliation", asy
   const dlg = page.getByTestId("terminate-dialog");
   await dlg.getByLabel("Reason").selectOption("COMPLIANCE");
   await dlg.getByLabel("Evidence, for the approver").fill("Controller confirmed on the sanctions list (reviewed by compliance); chargebacks above 1% for 90 days.");
-  await dlg.getByText("Add the merchant and its main owners").click();
+  // A compliance termination lists the business and its principals; nobody ticks a box.
+  await expect(dlg.getByTestId("listing-consequence")).toContainText("go on the terminated merchant list");
+  await dlg.getByLabel("Reason").selectOption("MERCHANT_REQUEST");
+  await expect(dlg.getByTestId("listing-consequence")).toContainText("not listed");
+  await dlg.getByLabel("Reason").selectOption("COMPLIANCE");
   await expect(dlg.getByTestId("terminate-submit")).toBeDisabled();
   await dlg.getByLabel("Type the merchant's name to confirm").fill("Nimbus Supplements");
   await dlg.getByTestId("terminate-submit").click();

@@ -27,8 +27,15 @@ Card-network monitoring thresholds change often and third-party sources disagree
 writing, summaries of Visa's VAMP cite a merchant "excessive" ratio of 1.5% (from April 2026 in most
 regions, 2.2% in CEMEA), while one source cites 0.9%; Mastercard's ECM is commonly cited at
 150 bps with ≥100 chargebacks, with a staged tightening proposed from 2027. Sentinel therefore stores
-the network threshold in `Policy.params.network` with the label **"Verify against current network
-rules"** and shows that label wherever the number is used. ETA's Payment Facilitator Guidelines
+each program's lines in `Policy.params.network` with the label **"Verify against current network
+rules"** and shows that label wherever a number is used.
+
+The two programs are calculated differently, and Sentinel calculates each as its network does
+(after the review in `ROAST.md` §1): Visa VAMP is fraud reports plus disputes over settled
+card-not-present Visa sales, by calendar month (Sentinel also shows a rolling 30 days as the early
+warning); Mastercard ECM is a month's chargebacks over the previous month's Mastercard sales. The
+payfac's sponsor acquirer is assessed on the portfolio's VAMP ratio (0.5% / 0.7% tiers), so the
+portfolio screen leads with that figure and its largest contributors. ETA's Payment Facilitator Guidelines
 (3rd ed.) shape the checklist: sub-merchant underwriting policy, periodic review, change monitoring
 and enhanced due diligence for higher-risk merchants.
 
@@ -96,7 +103,7 @@ filled part and coverage written as a percentage.
 | Control editor | What will this control do to the merchant's cash? | 90-day impact preview | Save / request approval |
 | Approvals | Should I approve this, and what happens if I do? | The "if approved" summary | Approve / Reject with note |
 | Rules Studio | Would this rule catch the right merchants? | Backtest chart vs active version | Save version (change note) |
-| Portfolio | Where is our exposure and who is close to a network threshold? | Exposure vs reserve by band | Open the merchant |
+| Portfolio | Where is our exposure, and who puts us at risk with Visa and Mastercard? | Exposure vs reserve by band; portfolio VAMP and the network watchlist | Open the merchant |
 | Audit | Can I prove who did what, and is the log intact? | The log table | Verify integrity |
 | RFI portal | What do I need to send, and by when? | The list of documents | Upload |
 

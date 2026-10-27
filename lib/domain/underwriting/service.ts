@@ -13,7 +13,8 @@ import { createControl } from "@/lib/domain/controls/service";
 import { requestApproval } from "@/lib/domain/approvals/service";
 import { ControlParamsSchema } from "@/lib/domain/controls/schema";
 import { buildChecklist, missingItems, type Checklist, type ChecklistStatus } from "./checklist";
-import { utcDay } from "@/lib/domain/reserves/calc";
+import { isoDay, utcDay } from "@/lib/domain/reserves/calc";
+import { screenOwner, merchantTerminatedEntry } from "@/lib/domain/screening/service";
 import { OPEN_CASE_STATES } from "@/lib/domain/caseStateMachine";
 
 const PRIORITY_BY_BAND = { LOW: "LOW", MEDIUM: "MEDIUM", HIGH: "HIGH", PROHIBITED: "HIGH" } as const;
@@ -30,6 +31,9 @@ async function autoChecklist(tx: Tx, merchantId: string) {
   const ubo = uboComplete(m.owners);
   const pendingHits = m.owners.flatMap((o) => o.hits.filter((h) => h.status === "PENDING_REVIEW").map((h) => `${o.fullName} ~ ${h.matchedName} (${h.matchScore})`));
   const confirmed = m.owners.flatMap((o) => o.hits.filter((h) => h.status === "CONFIRMED").map(() => o.fullName));
+  const isTerminated = (l: string) => l === "TERMINATED_INTERNAL" || l === "TERMINATED_MERCHANT_MOCK";
+  const termHits = m.owners.flatMap((o) => o.hits.filter((h) => isTerminated(h.listName) && h.status !== "FALSE_POSITIVE").map((h) => ({ owner: o.fullName, h })));
+  const merchantEntry = await merchantTerminatedEntry(tx, m);
   const auto: Partial<Record<string, { status: ChecklistStatus; evidence: string }>> = {
     ubo_complete: ubo.ok
       ? { status: "PASS", evidence: `Owners on file hold ${ubo.pct.toFixed(0)}%${m.owners.some((o) => o.isController) ? "; controller named" : ""}` }
@@ -40,6 +44,13 @@ async function autoChecklist(tx: Tx, merchantId: string) {
         : pendingHits.length > 0
           ? { status: "PENDING", evidence: `To review: ${pendingHits.join("; ")}` }
           : { status: "PASS", evidence: `${m.owners.length} owners screened, no matches` },
+    terminated_list_inquiry: merchantEntry
+      ? { status: "FAIL", evidence: `The business is on the terminated list (${merchantEntry.reasonCode}, ${isoDay(merchantEntry.createdAt)})` }
+      : termHits.some((x) => x.h.status === "CONFIRMED")
+        ? { status: "FAIL", evidence: `Principal on the terminated list: ${termHits.filter((x) => x.h.status === "CONFIRMED").map((x) => x.owner).join(", ")}` }
+        : termHits.length
+          ? { status: "PENDING", evidence: `To review on the Ownership tab: ${termHits.map((x) => `${x.owner} ~ ${x.h.matchedName} (${x.h.matchScore})`).join("; ")}` }
+          : { status: "PASS", evidence: `Business and ${m.owners.length} principals checked; not on the terminated list` },
   };
   if (checks.kyb) {
     auto.kyb_registry = checks.kyb.matched
@@ -71,24 +82,17 @@ export async function runSubmissionChecks(merchantId: string) {
   if (!m) throw new NotFoundError("Merchant");
   const app = m.applications[0];
   if (!app) throw new NotFoundError("Application");
-  const [kyb, website, screenings] = await Promise.all([
+  const [kyb, website] = await Promise.all([
     adapters.kyb.verify({ legalName: m.legalName, registrationNo: m.registrationNo, country: m.country }),
     adapters.website.check(m.website),
-    Promise.all(m.owners.map(async (o) => ({ owner: o, matches: await adapters.watchlist.screen({ fullName: o.fullName, dateOfBirth: o.dateOfBirth, nationality: o.nationality }) }))),
   ]);
+  const asOf = await now();
+  let hits = 0;
   await db.$transaction(async (tx) => {
     await tx.application.update({ where: { id: app.id }, data: { checks: { kyb, website } as never } });
-    for (const s of screenings) {
-      for (const match of s.matches) {
-        const exists = await tx.watchlistHit.findFirst({ where: { ownerId: s.owner.id, listName: match.listName, matchedName: match.matchedName } });
-        if (!exists) await tx.watchlistHit.create({ data: { ownerId: s.owner.id, listName: match.listName, matchedName: match.matchedName, matchScore: match.matchScore } });
-      }
-      const status = s.matches.length ? "POTENTIAL_MATCH" : "CLEAR";
-      if (s.owner.screeningStatus === "NOT_SCREENED" || s.owner.screeningStatus === "CLEAR") {
-        await tx.owner.update({ where: { id: s.owner.id }, data: { screeningStatus: status } });
-      }
-    }
-    await record(tx, SYSTEM_ACTOR, { action: "UNDERWRITING_CHECKS_COMPLETED", entityType: "Application", entityId: app.id, after: { kyb: kyb.status, website: website.live, hits: screenings.reduce((a, s) => a + s.matches.length, 0) } });
+    // Vendor lists and the internal terminated list, for every principal (MATCH-style inquiry).
+    for (const o of m.owners) hits += (await screenOwner(tx, o, asOf)).length;
+    await record(tx, SYSTEM_ACTOR, { action: "UNDERWRITING_CHECKS_COMPLETED", entityType: "Application", entityId: app.id, after: { kyb: kyb.status, website: website.live, hits } });
   });
   const score = await rescoreMerchant(merchantId, "ONBOARDING");
   await db.$transaction(async (tx) => {
@@ -119,7 +123,7 @@ export async function updateChecklistItem(actor: Actor & { id: string }, applica
     const c = app.checklist as unknown as Checklist;
     const item = c.items.find((i) => i.key === key);
     if (!item) throw new NotFoundError("Checklist item");
-    if (key === "screening_clear") throw new DomainError("AUTO_ITEM", "Screening clears when every watchlist hit is reviewed on the Ownership tab.");
+    if (key === "screening_clear" || key === "terminated_list_inquiry") throw new DomainError("AUTO_ITEM", "This item clears when every watchlist and terminated-list hit is reviewed on the Ownership tab.");
     const before = { ...item };
     item.status = status;
     item.note = note ?? null;

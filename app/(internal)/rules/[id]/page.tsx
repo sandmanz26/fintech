@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SYSTEM_RULE_KEYS } from "@/lib/domain/rules/system";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireStaff, viewerTz } from "@/lib/session";
@@ -34,7 +35,7 @@ export default async function RulePage({ params }: { params: Promise<{ id: strin
   const active = rule.versions.find((v) => v.id === rule.activeVersionId);
   const def = active ? RuleDefinitionSchema.safeParse(active.definition) : null;
   const s = stats.get(rule.key);
-  const system = rule.key === "R-LIMIT-BREACH";
+  const system = SYSTEM_RULE_KEYS.has(rule.key);
   return (
     <>
       <div className="crumbs"><Link href="/rules">Rules</Link><span aria-hidden>/</span><span className="id">{rule.key}</span></div>
@@ -55,7 +56,7 @@ export default async function RulePage({ params }: { params: Promise<{ id: strin
         <div className="kpi"><div className="kpi-label">Versions</div><div className="kpi-value num">{rule.versions.length}</div><div className="kpi-sub">every change kept</div></div>
       </div>
       {system ? (
-        <div className="notice info" style={{ marginBottom: 16 }}>System rule: raised by the transaction pipeline when a limit control is exceeded. It is not evaluated on daily metrics and cannot be edited.</div>
+        <div className="notice info" style={{ marginBottom: 16 }}>System rule: {rule.description} It is not evaluated on daily metrics and cannot be edited or switched off.</div>
       ) : (
         <RuleEditor ruleId={rule.id} initial={def?.success ? def.data : null} name={rule.name} description={rule.description} canWrite={canWrite} />
       )}

@@ -6,7 +6,7 @@ import { addDays } from "@/lib/domain/reserves/calc";
 import { formatMoney } from "@/lib/money";
 import { fmtPct } from "@/lib/format";
 import { BandPill, MerchantStatusPill } from "@/components/ui/badges";
-import { getActivePolicy } from "@/lib/domain/policy";
+import { getActivePolicy, networkLines } from "@/lib/domain/policy";
 import { RowLink } from "@/components/ui/RowLink";
 
 export const metadata = { title: "Merchants" };
@@ -35,13 +35,13 @@ export default async function MerchantsPage({ searchParams }: { searchParams: Pr
     getActivePolicy(),
   ]);
   const ids = list.map((m) => m.id);
-  const agg = await db.dailyMerchantMetric.groupBy({ by: ["merchantId"], where: { merchantId: { in: ids }, date: { gte: addDays(today, -30), lt: today } }, _sum: { grossVolumeMinor: true, settledCount: true, chargebackCount: true } });
+  const agg = await db.dailyMerchantMetric.groupBy({ by: ["merchantId"], where: { merchantId: { in: ids }, date: { gte: addDays(today, -30), lt: today } }, _sum: { grossVolumeMinor: true, visaCnpSettledCount: true, visaDisputeCount: true, visaFraudReportCount: true, visaFraudOverlapCount: true } });
   const by = new Map(agg.map((a) => [a.merchantId, a._sum]));
   const qs = (o: Record<string, string | undefined>) => {
     const p = new URLSearchParams(Object.entries({ q: sp.q, band: sp.band, group: sp.group, ...o }).filter(([, v]) => v) as [string, string][]);
     return `/merchants${p.size ? `?${p}` : ""}`;
   };
-  const threshold = policy.params.network.cbRatioThresholdBps / 10_000;
+  const lines = networkLines(policy.params);
   return (
     <>
       <div className="title-row">
@@ -84,15 +84,16 @@ export default async function MerchantsPage({ searchParams }: { searchParams: Pr
                   <th>Status</th>
                   <th>Risk</th>
                   <th className="n">Volume, 30 days</th>
-                  <th className="n">Chargebacks, 30 days</th>
+                  <th className="n" title="Visa fraud reports and disputes over settled card-not-present Visa sales">Visa VAMP, 30 days</th>
                   <th className="n">Controls</th>
                 </tr>
               </thead>
               <tbody>
                 {list.map((m) => {
                   const s = by.get(m.id);
-                  const settled = s?.settledCount ?? 0;
-                  const cb = settled ? (s?.chargebackCount ?? 0) / settled : null;
+                  const cnp = s?.visaCnpSettledCount ?? 0;
+                  const count = (s?.visaFraudReportCount ?? 0) + (s?.visaDisputeCount ?? 0) - (lines.countFraudDisputesTwice ? 0 : (s?.visaFraudOverlapCount ?? 0));
+                  const vamp = cnp ? count / cnp : null;
                   return (
                     <RowLink key={m.id} href={`/merchants/${m.id}`}>
                       <td>
@@ -102,9 +103,13 @@ export default async function MerchantsPage({ searchParams }: { searchParams: Pr
                       <td><MerchantStatusPill status={m.status} /></td>
                       <td data-line2><BandPill band={m.currentBand} score={m.currentScore} /></td>
                       <td className="n money">{s?.grossVolumeMinor ? formatMoney(s.grossVolumeMinor, m.currency) : <span className="muted">—</span>}</td>
-                      <td className="n num" style={{ color: cb !== null && cb >= threshold * 0.8 && (s?.chargebackCount ?? 0) >= 10 ? "var(--negative)" : undefined }}>
-                        {cb === null ? <span className="muted">—</span> : fmtPct(cb)}
-                        {s?.chargebackCount ? <span className="sub">{s.chargebackCount}</span> : null}
+                      <td
+                        className="n num"
+                        title={count < lines.warningMinCount ? `Fewer than ${lines.warningMinCount} counts: too few to read as a ratio` : undefined}
+                        style={{ color: vamp !== null && vamp >= lines.vampWarning && count >= lines.warningMinCount ? "var(--negative)" : count < lines.warningMinCount ? "var(--muted)" : undefined }}
+                      >
+                        {vamp === null ? <span className="muted">—</span> : fmtPct(vamp)}
+                        {count ? <span className="sub">{count}</span> : null}
                       </td>
                       <td className="n num" data-hide-phone>{m._count.controls || <span className="muted">0</span>}</td>
                     </RowLink>

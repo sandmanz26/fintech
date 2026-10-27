@@ -281,7 +281,7 @@ export function scoreMerchant(input: ScoringInput, policy: PolicyParams, policyV
   }
   for (const o of input.owners) {
     const confirmed = o.hits.filter((h) => h.status === "CONFIRMED");
-    const onTerminatedList = confirmed.some((h) => h.listName === "TERMINATED_MERCHANT_MOCK");
+    const onTerminatedList = confirmed.some((h) => h.listName === "TERMINATED_MERCHANT_MOCK" || h.listName === "TERMINATED_INTERNAL");
     const onWatchlist =
       confirmed.some((h) => h.listName !== "TERMINATED_MERCHANT_MOCK") ||
       (o.screeningStatus === "CONFIRMED_MATCH" && confirmed.length === 0);

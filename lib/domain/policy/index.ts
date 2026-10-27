@@ -35,3 +35,35 @@ export async function createPolicyVersion(actor: Actor, params: unknown, changeN
     return created;
   });
 }
+
+/** Card-network program lines as fractions, read by the rules, the reports and the screens. */
+export type NetworkLines = {
+  label: string;
+  vampLine: number;
+  vampWarning: number;
+  vampMinCount: number;
+  acquirerAboveStandard: number;
+  acquirerExcessive: number;
+  countFraudDisputesTwice: boolean;
+  ecmLine: number;
+  ecmWarning: number;
+  ecmMinCount: number;
+  warningMinCount: number;
+};
+
+export function networkLines(p: PolicyParams): NetworkLines {
+  const n = p.network;
+  return {
+    label: n.label,
+    vampLine: n.visa.merchantExcessiveBps / 10_000,
+    vampWarning: (n.visa.merchantExcessiveBps / 10_000) * n.earlyWarningShare,
+    vampMinCount: n.visa.merchantMinCount,
+    acquirerAboveStandard: n.visa.acquirerAboveStandardBps / 10_000,
+    acquirerExcessive: n.visa.acquirerExcessiveBps / 10_000,
+    countFraudDisputesTwice: n.visa.countFraudDisputesTwice,
+    ecmLine: n.mastercard.ecmBps / 10_000,
+    ecmWarning: (n.mastercard.ecmBps / 10_000) * n.earlyWarningShare,
+    ecmMinCount: n.mastercard.ecmMinChargebacks,
+    warningMinCount: n.warningMinCount,
+  };
+}

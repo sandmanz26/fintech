@@ -1,14 +1,15 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { record, type Actor, SYSTEM_ACTOR } from "@/lib/domain/audit";
-import { getActivePolicy } from "@/lib/domain/policy";
-import { buildMetricContext, type DayRow } from "@/lib/domain/metrics/context";
+import { getActivePolicy, networkLines } from "@/lib/domain/policy";
+import { buildMetricContext, networkHistoryStart, type DayRow } from "@/lib/domain/metrics/context";
 import { loadDayRows } from "@/lib/domain/metrics";
 import { addDays, isoDay, utcDay } from "@/lib/domain/reserves/calc";
 import { routeAlert } from "@/lib/domain/cases/service";
 import { DomainError, NotFoundError } from "@/lib/errors";
 import { RuleDefinitionSchema, evaluateRule, dedupeKey, type RuleDefinition, type RuleSubject, type TraceNode } from "./dsl";
 import { PROCESSING_STATES } from "@/lib/domain/merchantStateMachine";
+import { SYSTEM_RULE_KEYS } from "./system";
 
 export async function activeRules() {
   const rules = await db.rule.findMany({ where: { enabled: true, activeVersionId: { not: null } }, include: { versions: true } });
@@ -51,14 +52,14 @@ export async function runMonitoringRules(day: Date): Promise<{ evaluated: number
     where: { status: { in: PROCESSING_STATES } },
     select: { id: true, status: true, country: true, activatedAt: true, createdAt: true, expectedAvgTicketMinor: true, expectedMonthlyVolumeMinor: true },
   });
-  const rowsBy = await loadDayRows(merchants.map((m) => m.id), addDays(day, -45), day);
+  const rowsBy = await loadDayRows(merchants.map((m) => m.id), networkHistoryStart(day), day);
   const spikes = await db.alert.groupBy({
     by: ["merchantId"],
     where: { ruleKey: "R-VOL-SPIKE", metricDate: { gte: addDays(day, -14), lt: utcDay(day) } },
     _count: true,
   });
   const spikeBy = new Map(spikes.map((s) => [s.merchantId, s._count]));
-  const networkThresholdRatio = policy.params.network.cbRatioThresholdBps / 10_000;
+  const lines = networkLines(policy.params);
   let evaluated = 0;
   let created = 0;
 
@@ -72,7 +73,7 @@ export async function runMonitoringRules(day: Date): Promise<{ evaluated: number
         expectedMonthlyVolumeMinor: Number(m.expectedMonthlyVolumeMinor),
         isDomestic: policy.params.scoring.primaryCountries.includes(m.country),
       },
-      { networkThresholdRatio, volSpikeAlerts14d: spikeBy.get(m.id) ?? 0, lastTxnDate: lastTxnFromRows(rows, date) },
+      { lines, volSpikeAlerts14d: spikeBy.get(m.id) ?? 0, lastTxnDate: lastTxnFromRows(rows, date) },
     );
     for (const { rule, version, def } of rules) {
       evaluated++;
@@ -130,14 +131,14 @@ export async function backtestRule(candidate: RuleDefinition, activeDef: RuleDef
     where: { status: { notIn: ["APPLICATION_DRAFT", "SUBMITTED", "IN_UNDERWRITING", "PENDING_INFO", "DECLINED"] } },
     select: { id: true, status: true, legalName: true, dbaName: true, country: true, activatedAt: true, createdAt: true, expectedAvgTicketMinor: true, expectedMonthlyVolumeMinor: true },
   });
-  const rowsBy = await loadDayRows(null, addDays(start, -45), end);
+  const rowsBy = await loadDayRows(null, networkHistoryStart(start), end);
   const spikeAlerts = await db.alert.findMany({
     where: { ruleKey: "R-VOL-SPIKE", metricDate: { gte: addDays(start, -14), lte: end } },
     select: { merchantId: true, metricDate: true },
   });
   const spikesBy = new Map<string, string[]>();
   for (const a of spikeAlerts) spikesBy.set(a.merchantId, [...(spikesBy.get(a.merchantId) ?? []), isoDay(a.metricDate)]);
-  const networkThresholdRatio = policy.params.network.cbRatioThresholdBps / 10_000;
+  const lines = networkLines(policy.params);
   const perDay = new Map<string, { candidate: number; active: number }>();
   const perMerchant = new Map<string, { candidateDays: number; activeDays: number; firstDate: string }>();
 
@@ -160,7 +161,7 @@ export async function backtestRule(candidate: RuleDefinition, activeDef: RuleDef
       if (!rows.some((r) => r.date === date)) continue; // merchant not processing that day
       const from14 = isoDay(addDays(new Date(`${date}T00:00:00Z`), -14));
       const metrics = buildMetricContext(rows, date, facts, {
-        networkThresholdRatio,
+        lines,
         volSpikeAlerts14d: spikes.filter((d) => d >= from14 && d < date).length,
         lastTxnDate: lastTxnFromRows(rows, date),
       });
@@ -211,6 +212,7 @@ export async function createRuleVersion(
   return db.$transaction(async (tx) => {
     let rule = input.ruleId ? await tx.rule.findUnique({ where: { id: input.ruleId } }) : null;
     if (input.ruleId && !rule) throw new NotFoundError("Rule");
+    if (SYSTEM_RULE_KEYS.has(rule?.key ?? def.key)) throw new DomainError("SYSTEM_RULE", "System rules cannot be edited.");
     if (!rule) {
       const clash = await tx.rule.findUnique({ where: { key: def.key } });
       if (clash) throw new DomainError("KEY_TAKEN", `A rule with key ${def.key} already exists.`, 409);
@@ -241,6 +243,7 @@ export async function setRuleEnabled(actor: Actor, ruleId: string, enabled: bool
   return db.$transaction(async (tx) => {
     const r = await tx.rule.findUnique({ where: { id: ruleId } });
     if (!r) throw new NotFoundError("Rule");
+    if (SYSTEM_RULE_KEYS.has(r.key)) throw new DomainError("SYSTEM_RULE", "System rules cannot be switched on or off.");
     await tx.rule.update({ where: { id: ruleId }, data: { enabled } });
     await record(tx, actor, { action: enabled ? "RULE_ENABLED" : "RULE_DISABLED", entityType: "Rule", entityId: ruleId, before: { enabled: r.enabled }, after: { enabled } });
   });

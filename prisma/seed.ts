@@ -1,5 +1,5 @@
 /**
- * Seed (PRD §11): 7 users, 40 reason codes, policy v1, 9 rules, ~200 fictional merchants
+ * Seed (PRD §11): 7 users, 40 reason codes, policy v1, 10 rules, ~200 fictional merchants
  * (~60% LOW, 28% MEDIUM, 10% HIGH, 2% PROHIBITED), 120 days of simulated transactions, and the
  * five story merchants. Run with `npm run seed` (resets the database first).
  */
@@ -19,6 +19,7 @@ import { assignCase, transitionCase, addNote, dismissAlert } from "@/lib/domain/
 import { runSubmissionChecks, reviewWatchlistHit, updateChecklistItem } from "@/lib/domain/underwriting/service";
 import { openDay } from "@/lib/jobs";
 import { simulateDay } from "@/lib/sim/simulator";
+import { SYSTEM_RULES, systemRuleDefinition } from "@/lib/domain/rules/system";
 import { rng, type Rng } from "@/lib/sim/random";
 import { businessName, personName, slug } from "@/lib/sim/names";
 import { SIM_TODAY, STORY } from "@/lib/sim/stories";
@@ -334,18 +335,12 @@ async function main() {
     const v = await db.ruleVersion.create({ data: { ruleId: rule.id, version: 1, definition: def as never, createdById: users.laura.id, changeNote: "Initial rule set" } });
     await db.rule.update({ where: { id: rule.id }, data: { activeVersionId: v.id } });
   }
-  // System rule that control-limit alerts point at; it is never evaluated on metrics.
-  const lim = await db.rule.create({ data: { key: "R-LIMIT-BREACH", name: "Control limit exceeded", description: "Raised by the transaction pipeline when a volume limit or maximum-ticket control is exceeded.", enabled: false } });
-  const limV = await db.ruleVersion.create({
-    data: {
-      ruleId: lim.id,
-      version: 1,
-      createdById: users.laura.id,
-      changeNote: "System rule for control breaches",
-      definition: { key: "R-LIMIT-BREACH", scope: "merchant_daily", when: { metric: "gross_volume_1d", op: "<", value: 0 }, severity: "MEDIUM", filters: { merchantStatus: ["ACTIVE"], minAgeDays: 0 }, dedupe: { windowHours: 24, keyTemplate: "{ruleKey}:{merchantId}:{date}" }, autoCase: { enabled: true, caseType: "MONITORING", priority: "MEDIUM" }, evidenceMetrics: [] } as never,
-    },
-  });
-  await db.rule.update({ where: { id: lim.id }, data: { activeVersionId: limV.id } });
+  // System rules that pipeline alerts point at; they are never evaluated on metrics.
+  for (const r of SYSTEM_RULES) {
+    const rule = await db.rule.create({ data: { key: r.key, name: r.name, description: r.description, enabled: false } });
+    const v = await db.ruleVersion.create({ data: { ruleId: rule.id, version: 1, createdById: users.laura.id, changeNote: "System rule", definition: systemRuleDefinition(r) as never } });
+    await db.rule.update({ where: { id: rule.id }, data: { activeVersionId: v.id } });
+  }
   await record(db, actor("sam"), { action: "SEED_STARTED", entityType: "System", entityId: "seed", after: { users: USERS.length, reasonCodes: REASON_CODES.length, rules: DEFAULT_RULES.length } });
   log("Reference data ready");
 
@@ -479,7 +474,7 @@ async function main() {
       const months = sc.band === "PROHIBITED" ? 1 : DEFAULT_POLICY.rescoreMonths[sc.band];
       const next = new Date(T);
       next.setUTCMonth(next.getUTCMonth() + months);
-      next.setUTCDate(rng(`review:${m.id}`).int(1, 28));
+      next.setUTCDate(rng(`review:${s.registrationNo}`).int(1, 28));
       await db.merchant.update({ where: { id: m.id }, data: { currentBand: sc.band, currentScore: sc.score, nextReviewAt: next } });
     }
   }
@@ -532,9 +527,9 @@ async function main() {
   const storyIds = new Set(Object.keys(STORY).map((k) => byStory(k as keyof typeof STORY)));
   const old = await db.case.findMany({ where: { createdAt: { lt: addDays(T, -3) }, status: { not: "RESOLVED" } }, include: { alerts: true }, orderBy: { createdAt: "asc" } });
   let worked = 0;
-  for (const c of old) {
+  for (const [i, c] of old.entries()) {
     if (storyIds.has(c.merchantId)) continue;
-    const r = rng(`work:${c.id}`);
+    const r = rng(`work:${i}`);
     const who = r.chance(0.6) ? "rina" : "dimas";
     await setSimToday(addDays(utcDay(c.createdAt), 0));
     invalidateClock();

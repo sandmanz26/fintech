@@ -73,10 +73,13 @@ export const DEFAULT_POLICY: PolicyParams = {
   },
   sla: { CRITICAL: 4, HIGH: 24, MEDIUM: 72, LOW_BUSINESS_DAYS: 5 },
   network: {
-    // Published summaries of card-network monitoring programs disagree and change often.
-    cbRatioThresholdBps: 150,
-    minChargebacks: 100,
+    // Published summaries of card-network monitoring programs disagree and change often
+    // (see ROAST.md §1). These follow the April 2026 summaries; verify before relying on them.
     label: "Verify against current network rules",
+    visa: { merchantExcessiveBps: 150, merchantMinCount: 1500, acquirerAboveStandardBps: 50, acquirerExcessiveBps: 70, countFraudDisputesTwice: true },
+    mastercard: { ecmBps: 150, ecmMinChargebacks: 100 },
+    earlyWarningShare: 0.8,
+    warningMinCount: 10,
   },
   disputeWindowDays: 120,
   rescoreMonths: { LOW: 12, MEDIUM: 3, HIGH: 1 },

@@ -77,7 +77,7 @@ export default async function Dashboard() {
           {pulse ? (
             <div className="kpis" data-testid="dash-pulse">
               <div className="kpi"><div className="kpi-label">Exposure covered</div><div className="kpi-value num">{fmtPct(pulse.totals.exposure ? Number((pulse.totals.reserve * 1000n) / pulse.totals.exposure) / 1000 : 0, 0)}</div><div className="kpi-sub money">{formatMoney(pulse.totals.reserve, "USD", { compact: true })} of {formatMoney(pulse.totals.exposure, "USD", { compact: true })}</div></div>
-              <div className="kpi"><div className="kpi-label">Near the network line</div><div className="kpi-value num" style={{ color: pulse.network.some((n) => n.share >= 0.8) ? "var(--negative)" : undefined }}>{pulse.network.filter((n) => n.share >= 0.8).length}</div><div className="kpi-sub">80% or more of {fmtPct(pulse.threshold, 1)}</div></div>
+              <div className="kpi"><div className="kpi-label">Past a network early warning</div><div className="kpi-value num" style={{ color: pulse.network.some((n) => n.share >= pulse.lines.vampWarning / pulse.lines.vampLine) ? "var(--negative)" : undefined }}>{pulse.network.filter((n) => n.share >= pulse.lines.vampWarning / pulse.lines.vampLine).length}</div><div className="kpi-sub num">portfolio Visa VAMP {fmtPct(pulse.portfolioNetwork.vamp30.ratio)}</div></div>
               <div className="kpi"><div className="kpi-label">Cases within SLA</div><div className="kpi-value num">{(() => { const o = pulse.queue.reduce((a, q) => a + q.open, 0); return o ? fmtPct(pulse.queue.reduce((a, q) => a + q.inSla, 0) / o, 0) : "—"; })()}</div><div className="kpi-sub">target 90% · <Link className="link" href="/reports">Portfolio</Link></div></div>
             </div>
           ) : null}

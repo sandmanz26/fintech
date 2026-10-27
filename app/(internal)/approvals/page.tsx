@@ -180,7 +180,7 @@ async function Detail({
       {req.actionType === "TERMINATE" ? (
         <dl className="kv" style={{ marginBottom: 16 }}>
           <dt>Reason</dt>
-          <dd>{TERMINATION_CATEGORIES[p.reasonCategory as keyof typeof TERMINATION_CATEGORIES] ?? String(p.reasonCategory)}</dd>
+          <dd>{TERMINATION_CATEGORIES[p.reasonCategory as keyof typeof TERMINATION_CATEGORIES]?.label ?? String(p.reasonCategory)}</dd>
           <dt>Evidence from the requester</dt>
           <dd style={{ textAlign: "left" }}>{String(p.note ?? "")}</dd>
         </dl>

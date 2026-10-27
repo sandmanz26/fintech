@@ -13,22 +13,16 @@ import { minBig } from "@/lib/money";
 import { reserveBalances } from "@/lib/domain/controls/service";
 import { fmtDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
+import { TERMINATION_CATEGORIES, listedFor, type TerminationCategory } from "./categories";
 
-/** PRD §6.6 termination categories. */
-export const TERMINATION_CATEGORIES = {
-  FRAUD: "Fraud",
-  EXCESSIVE_CHARGEBACKS: "Excessive chargebacks",
-  PRODUCT_POLICY: "Product policy violation",
-  COMPLIANCE: "Compliance or sanctions",
-  MERCHANT_REQUEST: "Merchant request",
-  INACTIVE: "Inactive",
-} as const;
+export { TERMINATION_CATEGORIES };
 
 export const TerminateSchema = z.object({
-  reasonCategory: z.enum(Object.keys(TERMINATION_CATEGORIES) as [keyof typeof TERMINATION_CATEGORIES, ...(keyof typeof TERMINATION_CATEGORIES)[]]),
+  reasonCategory: z.enum(Object.keys(TERMINATION_CATEGORIES) as [TerminationCategory, ...TerminationCategory[]]),
   reasonCode: z.string().min(1),
   note: z.string().trim().min(3),
-  addToTerminatedList: z.boolean().default(false),
+  /** Ignored on input: the category decides (see categories.ts). Kept in the stored payload. */
+  addToTerminatedList: z.boolean().optional(),
   caseId: z.string().optional(),
 });
 export type TerminatePayload = z.infer<typeof TerminateSchema>;
@@ -36,7 +30,8 @@ export type TerminatePayload = z.infer<typeof TerminateSchema>;
 /** Propose a termination; it only happens once a second, authorised person approves it. */
 export async function proposeTermination(actor: Actor & { id: string }, merchantId: string, raw: unknown) {
   if (!can(actor.role, "control.propose") && !can(actor.role, "case.work")) throw new ForbiddenError();
-  const input = TerminateSchema.parse(raw);
+  const parsed = TerminateSchema.parse(raw);
+  const input = { ...parsed, addToTerminatedList: listedFor(parsed.reasonCategory) };
   return db.$transaction(async (tx) => {
     const m = await tx.merchant.findUnique({ where: { id: merchantId } });
     if (!m) throw new NotFoundError("Merchant");
@@ -53,7 +48,7 @@ export async function proposeTermination(actor: Actor & { id: string }, merchant
       payload: { ...input, merchantId },
       merchantId,
       caseId: input.caseId ?? null,
-      summary: `Terminate ${name} (${TERMINATION_CATEGORIES[input.reasonCategory].toLowerCase()}). Processing stops; ${formatMoney(total, m.currency)} reserve held ${policy.params.disputeWindowDays} days for late chargebacks${input.addToTerminatedList ? "; merchant and owners added to the terminated list" : ""}.`,
+      summary: `Terminate ${name} (${TERMINATION_CATEGORIES[input.reasonCategory].label.toLowerCase()}). Processing stops; ${formatMoney(total, m.currency)} reserve held ${policy.params.disputeWindowDays} days for late chargebacks${input.addToTerminatedList ? "; business and principals added to the terminated merchant list" : "; not listed (a voluntary or inactive closure)"}.`,
       actor,
     });
   });
@@ -77,7 +72,7 @@ export async function executeTermination(tx: Tx, merchantId: string, p: Terminat
   if (p.addToTerminatedList) {
     await tx.terminatedListEntry.create({ data: { kind: "MERCHANT", name: m.legalName, registrationNo: m.registrationNo, reasonCode: p.reasonCode, merchantId, addedById: actor.id ?? "system" } });
     for (const o of m.owners.filter((o) => Number(o.ownershipPct) >= 25 || o.isController)) {
-      await tx.terminatedListEntry.create({ data: { kind: "OWNER", name: o.fullName, reasonCode: p.reasonCode, merchantId, addedById: actor.id ?? "system" } });
+      await tx.terminatedListEntry.create({ data: { kind: "OWNER", name: o.fullName, idNumber: o.idNumber, reasonCode: p.reasonCode, merchantId, addedById: actor.id ?? "system" } });
     }
     await record(tx, actor, { action: "TERMINATED_LIST_ADDED", entityType: "Merchant", entityId: merchantId, after: { reasonCode: p.reasonCode } });
   }

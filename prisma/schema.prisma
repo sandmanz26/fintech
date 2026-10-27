@@ -113,7 +113,7 @@ model User {
 }
 
 model Merchant {
-  id                         String         @id @default(cuid())
+  id                         String                @id @default(cuid())
   legalName                  String
   dbaName                    String?
   registrationNo             String
@@ -122,12 +122,12 @@ model Merchant {
   website                    String?
   incorporatedAt             DateTime?
   deliveryModel              DeliveryModel
-  avgDeliveryDays            Int            @default(0)
+  avgDeliveryDays            Int                   @default(0)
   expectedMonthlyVolumeMinor BigInt
   expectedAvgTicketMinor     BigInt
   priorCbRatioBps            Int? // (+) historical chargeback ratio from prior processor, basis points
-  currency                   String         @default("USD")
-  status                     MerchantStatus @default(APPLICATION_DRAFT)
+  currency                   String                @default("USD")
+  status                     MerchantStatus        @default(APPLICATION_DRAFT)
   currentBand                RiskBand?
   currentScore               Int?
   assignedToId               String?
@@ -135,8 +135,8 @@ model Merchant {
   nextReviewAt               DateTime? // (+) periodic re-score due date
   offboardedAt               DateTime? // (+) termination approved / voluntary closure
   disputeWindowEndsAt        DateTime? // (+) reserve held until this date after offboarding
-  createdAt                  DateTime       @default(now())
-  updatedAt                  DateTime       @updatedAt
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
   owners                     Owner[]
   applications               Application[]
   documents                  Document[]
@@ -146,24 +146,28 @@ model Merchant {
   alerts                     Alert[]
   metrics                    DailyMerchantMetric[]
   disputes                   Dispute[]
+  fraudReports               FraudReport[]
+  websiteScans               WebsiteScan[]
   reserveEntries             ReserveLedgerEntry[]
 
   @@index([status, currentBand])
 }
 
 model Owner {
-  id              String         @id @default(cuid())
-  merchantId      String
-  fullName        String
-  dateOfBirth     DateTime?
-  nationality     String?
-  idNumber        String? // (+) national ID / passport; masked in lists
-  ownershipPct    Decimal        @db.Decimal(5, 2)
-  isController    Boolean        @default(false)
-  parentOwnerId   String? // (+) for the ownership tree (holding company -> person)
-  screeningStatus String         @default("NOT_SCREENED") // NOT_SCREENED|CLEAR|POTENTIAL_MATCH|CONFIRMED_MATCH
-  merchant        Merchant       @relation(fields: [merchantId], references: [id])
-  hits            WatchlistHit[]
+  id                  String         @id @default(cuid())
+  merchantId          String
+  fullName            String
+  dateOfBirth         DateTime?
+  nationality         String?
+  idNumber            String? // (+) national ID / passport; masked in lists
+  ownershipPct        Decimal        @db.Decimal(5, 2)
+  isController        Boolean        @default(false)
+  parentOwnerId       String? // (+) for the ownership tree (holding company -> person)
+  screeningStatus     String         @default("NOT_SCREENED") // NOT_SCREENED|CLEAR|POTENTIAL_MATCH|CONFIRMED_MATCH
+  lastScreenedAt      DateTime? // (+) ongoing rescreening
+  screenedListVersion String? // (+) list version the last screening used
+  merchant            Merchant       @relation(fields: [merchantId], references: [id])
+  hits                WatchlistHit[]
 }
 
 model Application {
@@ -223,6 +227,8 @@ model Transaction {
   cardCountry   String
   cardBin       String
   isCrossBorder Boolean
+  cardBrand     String   @default("VISA") // (+) VISA|MASTERCARD|OTHER, from the BIN
+  isCardPresent Boolean  @default(false) // (+) network programs count card-not-present only
   flags         String[] @default([]) // (+) OVER_LIMIT | OVER_MAX_TICKET
 
   @@index([merchantId, occurredAt])
@@ -243,6 +249,13 @@ model DailyMerchantMetric {
   avgTicketMinor        BigInt
   crossBorderPct        Decimal  @db.Decimal(5, 2)
   smallAuthCount        Int
+  // (+) Card-network program inputs (Visa VAMP, Mastercard ECM), per brand and channel.
+  visaCnpSettledCount   Int      @default(0)
+  visaDisputeCount      Int      @default(0)
+  visaFraudReportCount  Int      @default(0)
+  visaFraudOverlapCount Int      @default(0) // fraud disputes whose sale also has a fraud report
+  mcSettledCount        Int      @default(0)
+  mcChargebackCount     Int      @default(0)
   merchant              Merchant @relation(fields: [merchantId], references: [id])
 
   @@unique([merchantId, date])
@@ -260,6 +273,19 @@ model Dispute {
   merchant       Merchant @relation(fields: [merchantId], references: [id])
 
   @@index([merchantId, receivedAt])
+}
+
+// (+) Issuer fraud report (Visa TC40 / Mastercard SAFE). Counted by Visa VAMP alongside disputes.
+model FraudReport {
+  id            String   @id
+  merchantId    String
+  transactionId String
+  cardBrand     String
+  reportedAt    DateTime
+  merchant      Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, reportedAt])
+  @@index([reportedAt])
 }
 
 model Rule {
@@ -397,43 +423,61 @@ model ApprovalRequest {
 }
 
 model Rfi {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   merchantId        String
   caseId            String
-  token             String   @unique
+  token             String    @unique
   items             Json // [{key,label,docType,required,status}]
   messageToMerchant String
   dueAt             DateTime
   expiresAt         DateTime // (+) dueAt + 7 days
   revokedAt         DateTime? // (+) once answered
-  status            String   @default("SENT") // SENT|PARTIALLY_ANSWERED|ANSWERED|OVERDUE
-  createdAt         DateTime @default(now())
+  status            String    @default("SENT") // SENT|PARTIALLY_ANSWERED|ANSWERED|OVERDUE
+  createdAt         DateTime  @default(now())
 }
 
 model WatchlistHit {
-  id          String    @id @default(cuid())
-  ownerId     String
-  listName    String // SANCTIONS_MOCK|TERMINATED_MERCHANT_MOCK|PEP_MOCK
-  matchedName String
-  matchScore  Int
-  status      String    @default("PENDING_REVIEW") // PENDING_REVIEW|FALSE_POSITIVE|CONFIRMED
+  id           String    @id @default(cuid())
+  ownerId      String
+  listName     String // SANCTIONS_MOCK|TERMINATED_MERCHANT_MOCK|PEP_MOCK|TERMINATED_INTERNAL
+  matchedName  String
+  matchScore   Int
+  status       String    @default("PENDING_REVIEW") // PENDING_REVIEW|FALSE_POSITIVE|CONFIRMED
   reviewedById String? // (+)
-  reviewNote  String? // (+)
-  reviewedAt  DateTime? // (+)
-  createdAt   DateTime  @default(now()) // (+)
-  owner       Owner     @relation(fields: [ownerId], references: [id])
+  reviewNote   String? // (+)
+  reviewedAt   DateTime? // (+)
+  createdAt    DateTime  @default(now()) // (+)
+  owner        Owner     @relation(fields: [ownerId], references: [id])
 }
 
 // (+) Internal terminated-merchant list (mock of an industry list such as MATCH).
 model TerminatedListEntry {
-  id           String   @id @default(cuid())
-  kind         String // MERCHANT|OWNER
-  name         String
+  id             String   @id @default(cuid())
+  kind           String // MERCHANT|OWNER
+  name           String
   registrationNo String?
-  reasonCode   String
-  merchantId   String?
-  addedById    String
-  createdAt    DateTime @default(now())
+  idNumber       String? // (+) owners: national ID / passport, matched exactly at inquiry
+  reasonCode     String
+  merchantId     String?
+  addedById      String
+  createdAt      DateTime @default(now())
+}
+
+// (+) Ongoing website monitoring (Visa payfac risk guide: website monitoring).
+model WebsiteScan {
+  id           String   @id @default(cuid())
+  merchantId   String
+  scannedAt    DateTime
+  url          String
+  live         Boolean
+  refundPolicy Boolean
+  terms        Boolean
+  contact      Boolean
+  categories   String[] // product categories found on the site
+  findings     String[] // OFFLINE | MISSING_REFUND_POLICY | MISSING_TERMS | MISSING_CONTACT | OFF_PROFILE_PRODUCTS
+  merchant     Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, scannedAt])
 }
 
 model ReasonCode {

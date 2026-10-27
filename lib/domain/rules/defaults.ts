@@ -7,7 +7,7 @@ const dedupe = { windowHours: 24, keyTemplate: "{ruleKey}:{merchantId}:{date}" }
 // Ratio rules stay true for weeks once crossed; re-alert weekly, not daily.
 const weekly = { windowHours: 168, keyTemplate: "{ruleKey}:{merchantId}:{date}" };
 
-/** The nine default monitoring rules (PRD §6.3). Money in minor units, ratios as fractions. */
+/** The nine default monitoring rules (PRD §6.3) plus Mastercard ECM. Money in minor units, ratios as fractions. */
 export const DEFAULT_RULES: Seed[] = [
   {
     key: "R-VOL-SPIKE",
@@ -66,22 +66,54 @@ export const DEFAULT_RULES: Seed[] = [
   },
   {
     key: "R-CB-NETWORK-PROX",
-    name: "Near the network threshold",
-    description: "30-day chargeback ratio at or above 80% of the network threshold configured in policy, with at least 10 chargebacks so a handful of disputes on a tiny merchant does not page anyone.",
+    name: "Near the Visa VAMP line",
+    description:
+      "Visa VAMP ratio over the last 30 days (fraud reports plus disputes, over settled card-not-present Visa sales) at or above the early-warning line in policy, with enough counts that a handful on a tiny merchant does not page anyone. Visa assesses calendar months; the rolling figure warns earlier.",
     definition: {
       key: "R-CB-NETWORK-PROX",
       scope: "merchant_daily",
       when: {
         all: [
-          { metric: "cb_ratio_30d", op: ">=", value: { mul: [0.8, { metric: "network_cb_threshold" }] } },
-          { metric: "chargeback_count_30d", op: ">=", value: 10 },
+          { metric: "vamp_ratio_30d", op: ">=", value: { metric: "vamp_warning_line" } },
+          { metric: "vamp_count_30d", op: ">=", value: { metric: "network_min_count" } },
         ],
       },
       filters: monitored,
       severity: "CRITICAL",
       dedupe: weekly,
       autoCase: { enabled: true, caseType: "DISPUTE_SPIKE", priority: "CRITICAL", slaHours: 4 },
-      evidenceMetrics: ["cb_ratio_30d", "network_cb_threshold", "chargeback_count_30d"],
+      evidenceMetrics: ["vamp_ratio_30d", "vamp_warning_line", "vamp_count_30d", "vamp_ratio_last_month"],
+    },
+  },
+  {
+    key: "R-MC-ECM",
+    name: "Mastercard excessive chargebacks",
+    description:
+      "Mastercard ECM: last month's chargebacks over the month before's Mastercard sales at the program line with the program's chargeback floor, or this month so far already past the early-warning line. The month-to-date figure only grows until month end, so it is a floor on the final ratio.",
+    definition: {
+      key: "R-MC-ECM",
+      scope: "merchant_daily",
+      when: {
+        any: [
+          {
+            all: [
+              { metric: "mc_ecm_ratio_last_month", op: ">=", value: { metric: "mc_ecm_line" } },
+              { metric: "mc_cb_count_last_month", op: ">=", value: { metric: "mc_ecm_min_count" } },
+            ],
+          },
+          {
+            all: [
+              { metric: "mc_ecm_ratio_mtd", op: ">=", value: { metric: "mc_ecm_warning_line" } },
+              { metric: "mc_cb_count_mtd", op: ">=", value: { metric: "network_min_count" } },
+            ],
+          },
+        ],
+      },
+      filters: monitored,
+      severity: "HIGH",
+      dedupe: weekly,
+      autoCase: { enabled: true, caseType: "DISPUTE_SPIKE", priority: "HIGH", slaHours: 24 },
+      evidenceMetrics: ["mc_ecm_ratio_mtd", "mc_cb_count_mtd", "mc_ecm_ratio_last_month", "mc_cb_count_last_month", "mc_ecm_warning_line"],
     },
   },
   {

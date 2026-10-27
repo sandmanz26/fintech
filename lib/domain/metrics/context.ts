@@ -1,4 +1,5 @@
 import type { MetricContext } from "@/lib/domain/rules/dsl";
+import type { NetworkLines } from "@/lib/domain/policy";
 import { addDays, isoDay } from "@/lib/domain/reserves/calc";
 
 /** One day of aggregates, as numbers (minor units are safe integers well below 2^53). */
@@ -12,6 +13,13 @@ export type DayRow = {
   chargebacks: number;
   crossBorderPct: number; // 0-100
   smallAuth: number;
+  // Card-network program inputs. Optional so older fixtures and tests stay valid (missing = 0).
+  visaCnp?: number;
+  visaDisputes?: number;
+  visaFraud?: number;
+  visaOverlap?: number;
+  mcSettled?: number;
+  mcCb?: number;
 };
 
 export type MerchantFacts = {
@@ -23,6 +31,54 @@ export type MerchantFacts = {
 const sum = (rows: DayRow[], f: (r: DayRow) => number) => rows.reduce((a, r) => a + f(r), 0);
 const safeDiv = (a: number, b: number) => (b === 0 ? null : a / b);
 
+export type ProgramFigure = { count: number; denominator: number; ratio: number | null; basis: string };
+export type NetworkFigures = {
+  /** Visa VAMP, rolling 30 days: the early warning. */
+  vamp30: ProgramFigure;
+  /** Visa VAMP for the last full calendar month: what Visa assesses. */
+  vampLastMonth: ProgramFigure;
+  /** Mastercard ECM, this month so far over last month's Mastercard sales (only grows until month end). */
+  ecmMonthToDate: ProgramFigure;
+  /** Mastercard ECM for the last full month over the month before. */
+  ecmLastMonth: ProgramFigure;
+};
+
+const monthStart = (d: Date, back = 0) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - back, 1));
+const monthLabel = (d: Date) => d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+
+/** Rows needed for networkFigures on `date`: from the first day of the month two months back. */
+export function networkHistoryStart(date: Date): Date {
+  return monthStart(date, 2);
+}
+
+/**
+ * Visa VAMP and Mastercard ECM figures for one merchant (or a portfolio, by passing summed rows)
+ * as of `date`. Pure. `rows` must reach back to networkHistoryStart(date).
+ */
+export function networkFigures(rows: DayRow[], date: string, countFraudDisputesTwice: boolean): NetworkFigures {
+  const d0 = new Date(`${date}T00:00:00Z`);
+  const between = (from: Date, toExcl: Date) => {
+    const f = isoDay(from);
+    const t = isoDay(toExcl);
+    return rows.filter((r) => r.date >= f && r.date < t);
+  };
+  const vampCount = (rs: DayRow[]) => sum(rs, (r) => (r.visaFraud ?? 0) + (r.visaDisputes ?? 0) - (countFraudDisputesTwice ? 0 : (r.visaOverlap ?? 0)));
+  const fig = (count: number, denominator: number, basis: string): ProgramFigure => ({ count, denominator, ratio: safeDiv(count, denominator), basis });
+  const last30 = between(addDays(d0, -29), addDays(d0, 1));
+  const thisMonth = monthStart(d0);
+  const lastMonth = monthStart(d0, 1);
+  const monthBefore = monthStart(d0, 2);
+  const lm = between(lastMonth, thisMonth);
+  const mtd = between(thisMonth, addDays(d0, 1));
+  const mb = between(monthBefore, lastMonth);
+  return {
+    vamp30: fig(vampCount(last30), sum(last30, (r) => r.visaCnp ?? 0), "Rolling 30 days"),
+    vampLastMonth: fig(vampCount(lm), sum(lm, (r) => r.visaCnp ?? 0), monthLabel(lastMonth)),
+    ecmMonthToDate: fig(sum(mtd, (r) => r.mcCb ?? 0), sum(lm, (r) => r.mcSettled ?? 0), `${monthLabel(thisMonth)} so far`),
+    ecmLastMonth: fig(sum(lm, (r) => r.mcCb ?? 0), sum(mb, (r) => r.mcSettled ?? 0), monthLabel(lastMonth)),
+  };
+}
+
 /**
  * Build the rule-engine metric context for one merchant on `date` (PRD §6.3 derived metrics).
  * `rows` holds up to the last 31 days ending on `date`; missing days count as zero activity.
@@ -32,7 +88,7 @@ export function buildMetricContext(
   rows: DayRow[],
   date: string,
   facts: MerchantFacts,
-  extras: { networkThresholdRatio: number; volSpikeAlerts14d: number; lastTxnDate: string | null },
+  extras: { lines: NetworkLines; volSpikeAlerts14d: number; lastTxnDate: string | null },
 ): MetricContext {
   const byDate = new Map(rows.map((r) => [r.date, r]));
   const d0 = new Date(`${date}T00:00:00Z`);
@@ -58,6 +114,7 @@ export function buildMetricContext(
     facts && extras.lastTxnDate
       ? Math.round((d0.getTime() - new Date(`${extras.lastTxnDate}T00:00:00Z`).getTime()) / 86_400_000)
       : 31;
+  const net = networkFigures(rows, date, extras.lines.countFraudDisputesTwice);
 
   return {
     gross_volume_1d: today?.gross ?? 0,
@@ -79,7 +136,20 @@ export function buildMetricContext(
     cross_border_pct_7d: xb7,
     days_since_last_txn: Math.max(0, daysSince),
     is_domestic: facts.isDomestic ? 1 : 0,
-    network_cb_threshold: extras.networkThresholdRatio,
+    vamp_count_30d: net.vamp30.count,
+    vamp_ratio_30d: net.vamp30.ratio,
+    vamp_count_last_month: net.vampLastMonth.count,
+    vamp_ratio_last_month: net.vampLastMonth.ratio,
+    mc_cb_count_mtd: net.ecmMonthToDate.count,
+    mc_ecm_ratio_mtd: net.ecmMonthToDate.ratio,
+    mc_cb_count_last_month: net.ecmLastMonth.count,
+    mc_ecm_ratio_last_month: net.ecmLastMonth.ratio,
+    vamp_line: extras.lines.vampLine,
+    vamp_warning_line: extras.lines.vampWarning,
+    mc_ecm_line: extras.lines.ecmLine,
+    mc_ecm_warning_line: extras.lines.ecmWarning,
+    mc_ecm_min_count: extras.lines.ecmMinCount,
+    network_min_count: extras.lines.warningMinCount,
     vol_spike_alerts_14d: extras.volSpikeAlerts14d,
   };
 }

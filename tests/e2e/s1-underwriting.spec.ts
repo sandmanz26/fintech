@@ -29,7 +29,7 @@ test("S1: conditional approval with a rolling reserve and four-eyes", async ({ p
     await expect(page.getByTestId(`check-${key}`)).toHaveAttribute("data-status", "PASS");
   }
   await expect(page.getByTestId("decision-locked")).toHaveCount(0);
-  await expect(page.getByTestId("checklist-progress")).toContainText("7 of 7");
+  await expect(page.getByTestId("checklist-progress")).toContainText("8 of 8");
 
   // Approve with conditions: add the reserve through the impact preview.
   await page.getByLabel("Approve with conditions").check();

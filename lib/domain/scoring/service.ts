@@ -1,4 +1,5 @@
 import type { RiskBand } from "@prisma/client";
+import { merchantTerminatedEntry } from "@/lib/domain/screening/service";
 import { db, type Tx } from "@/lib/db";
 import { record, type Actor, SYSTEM_ACTOR } from "@/lib/domain/audit";
 import { getActivePolicy } from "@/lib/domain/policy";
@@ -22,9 +23,7 @@ export async function loadScoringInput(tx: Tx, merchantId: string, asOf: Date): 
       ? { live: checks.website.live, refundPolicy: checks.website.refundPolicy, terms: checks.website.terms, contact: checks.website.contact }
       : { live: true, refundPolicy: true, terms: true, contact: true }
     : null;
-  const onList = await tx.terminatedListEntry.findFirst({
-    where: { kind: "MERCHANT", OR: [{ registrationNo: m.registrationNo }, { merchantId: m.id }] },
-  });
+  const onList = await merchantTerminatedEntry(tx, m);
   return {
     asOf,
     mcc: m.mcc,

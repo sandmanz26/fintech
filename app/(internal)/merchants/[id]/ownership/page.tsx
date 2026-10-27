@@ -10,7 +10,7 @@ const SCREEN: Record<string, { cls: string; label: string }> = {
   POTENTIAL_MATCH: { cls: "warn", label: "Possible match" },
   CONFIRMED_MATCH: { cls: "ink", label: "Confirmed match" },
 };
-const LIST: Record<string, string> = { SANCTIONS_MOCK: "Sanctions (mock)", PEP_MOCK: "Politically exposed (mock)", TERMINATED_MERCHANT_MOCK: "Terminated merchants (mock)" };
+const LIST: Record<string, string> = { SANCTIONS_MOCK: "Sanctions (mock)", PEP_MOCK: "Politically exposed (mock)", TERMINATED_MERCHANT_MOCK: "Terminated merchants (mock)", TERMINATED_INTERNAL: "Our terminated merchant list" };
 
 export default async function OwnershipTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -110,7 +110,13 @@ export default async function OwnershipTab({ params }: { params: Promise<{ id: s
           <header>
             <div>
               <h2 id="hits-h">Watchlist screening</h2>
-              <div className="meta">Name matches against sanctions, PEP and terminated-merchant lists (mock providers)</div>
+              <div className="meta">
+                Sanctions, PEP and terminated-merchant lists (mock providers) and our own terminated list · rescreened monthly and on every list update
+                {(() => {
+                  const last = m.owners.map((o) => o.lastScreenedAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0];
+                  return last ? ` · last screened ${fmtDate(last, tz)}` : "";
+                })()}
+              </div>
             </div>
           </header>
           {hits.length ? (

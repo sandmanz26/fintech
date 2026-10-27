@@ -6,7 +6,7 @@ import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
 import type { PolicyParams } from "@/lib/domain/policy/types";
 
-type Field = { path: string[]; label: string; unit: string; scale?: number; hint?: string };
+type Field = { path: string[]; label: string; unit: string; scale?: number; hint?: string; fraction?: boolean };
 
 /** The parameters people change most, as a form; everything else stays reachable as JSON. */
 const FIELDS: { group: string; fields: Field[] }[] = [
@@ -25,7 +25,12 @@ const FIELDS: { group: string; fields: Field[] }[] = [
     { path: ["sla", "LOW_BUSINESS_DAYS"], label: "Low", unit: "business days" },
   ] },
   { group: "Network and disputes", fields: [
-    { path: ["network", "cbRatioThresholdBps"], label: "Network chargeback line", unit: "%", scale: 100, hint: "Verify against current network rules" },
+    { path: ["network", "visa", "merchantExcessiveBps"], label: "Visa VAMP merchant line", unit: "%", scale: 100, hint: "Verify against current network rules" },
+    { path: ["network", "visa", "acquirerAboveStandardBps"], label: "Visa VAMP acquirer line", unit: "%", scale: 100, hint: "The portfolio is assessed against this" },
+    { path: ["network", "mastercard", "ecmBps"], label: "Mastercard ECM line", unit: "%", scale: 100 },
+    { path: ["network", "mastercard", "ecmMinChargebacks"], label: "Mastercard ECM floor", unit: "chargebacks" },
+    { path: ["network", "earlyWarningShare"], label: "Early warning at", unit: "% of each line", scale: 0.01, fraction: true },
+    { path: ["network", "warningMinCount"], label: "Warn from", unit: "counts", hint: "Below this a tiny merchant does not page anyone" },
     { path: ["disputeWindowDays"], label: "Dispute window", unit: "days" },
   ] },
 ];
@@ -51,12 +56,12 @@ export function PolicyEditor({ params, version, canWrite }: { params: PolicyPara
   const value = (f: Field) => {
     const v = get(draft, f.path);
     const n = typeof v === "string" ? Number(v) : (v as number);
-    return f.scale ? String(n / f.scale) : String(n);
+    return f.scale ? String(Math.round((n / f.scale) * 100) / 100) : String(n);
   };
   const change = (f: Field, s: string) => {
     const n = Number(s);
     if (Number.isNaN(n)) return;
-    const stored = f.scale ? Math.round(n * f.scale) : n;
+    const stored = f.scale ? (f.fraction ? Math.round(n * f.scale * 10_000) / 10_000 : Math.round(n * f.scale)) : n;
     const cur = get(draft, f.path);
     setDraft(set(draft, f.path, typeof cur === "string" ? String(stored) : stored));
     setImpact(null);

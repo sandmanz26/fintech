@@ -10,6 +10,8 @@ import { activateApprovedMerchants } from "@/lib/domain/underwriting/service";
 import { runPeriodicRescoring } from "@/lib/domain/scoring/service";
 import { finalizeOffboarding } from "@/lib/domain/offboarding/service";
 import { simulateDay } from "@/lib/sim/simulator";
+import { rescreenOwners } from "@/lib/domain/screening/service";
+import { monitorWebsites } from "@/lib/domain/monitoring/website";
 import { isoDay } from "@/lib/domain/reserves/calc";
 
 /** Run a job and record its duration and item count (PRD §10 observability). */
@@ -37,12 +39,14 @@ export async function closeDay(day: Date) {
   await withJobRun("apply-reserves", () => applyDailyReserves(day));
 }
 
-/** Morning jobs on the new day: releases, expiries, reviews, activations, re-scoring, SLA. */
+/** Morning jobs on the new day: releases, expiries, reviews, activations, screening, websites, re-scoring, SLA. */
 export async function openDay(day: Date) {
   await withJobRun("release-reserves", () => releaseDueReserves(day));
   await withJobRun("expire-controls", () => expireControls(day));
   await withJobRun("control-review-cases", () => openControlReviewCases());
   await withJobRun("activate-approved", () => activateApprovedMerchants());
+  await withJobRun("rescreen-owners", () => rescreenOwners(day), (r) => r.screened);
+  await withJobRun("monitor-websites", () => monitorWebsites(day), (r) => r.scanned);
   await withJobRun("periodic-rescoring", () => runPeriodicRescoring());
   await withJobRun("finalize-offboarding", () => finalizeOffboarding(day));
   await withJobRun("sla-checker", () => runSlaChecker(), (r) => r.breached);

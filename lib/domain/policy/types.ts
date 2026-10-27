@@ -47,9 +47,20 @@ export const PolicyParamsSchema = z.object({
   }),
   sla: z.object({ CRITICAL: z.number(), HIGH: z.number(), MEDIUM: z.number(), LOW_BUSINESS_DAYS: z.number() }),
   network: z.object({
-    cbRatioThresholdBps: z.number().int(),
-    minChargebacks: z.number().int(),
     label: z.string(),
+    /** Visa Acquirer Monitoring Program: (fraud reports + disputes) / settled card-not-present, Visa only. */
+    visa: z.object({
+      merchantExcessiveBps: z.number().int(),
+      merchantMinCount: z.number().int(),
+      acquirerAboveStandardBps: z.number().int(),
+      acquirerExcessiveBps: z.number().int(),
+      countFraudDisputesTwice: z.boolean(), // a fraud dispute with a matching fraud report counts twice
+    }),
+    /** Mastercard Excessive Chargeback Merchant: chargebacks in a month / Mastercard sales the month before. */
+    mastercard: z.object({ ecmBps: z.number().int(), ecmMinChargebacks: z.number().int() }),
+    /** Early-warning line as a share of each program line, and the count below which nobody is paged. */
+    earlyWarningShare: z.number().gt(0).lte(1),
+    warningMinCount: z.number().int(),
   }),
   disputeWindowDays: z.number().int(),
   rescoreMonths: z.object({ LOW: z.number().int(), MEDIUM: z.number().int(), HIGH: z.number().int() }),

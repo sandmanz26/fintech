@@ -95,8 +95,8 @@ describe("composition", () => {
 });
 
 describe("schema", () => {
-  it("accepts all nine default rules", () => {
-    expect(DEFAULT_RULES).toHaveLength(9);
+  it("accepts all ten default rules", () => {
+    expect(DEFAULT_RULES).toHaveLength(10);
     for (const r of DEFAULT_RULES) expect(RuleDefinitionSchema.safeParse(r.definition).success, r.key).toBe(true);
   });
   it("rejects unknown metrics, bad between, and arrays on scalar ops", () => {
@@ -118,12 +118,23 @@ describe("evaluateRule with the default rules", () => {
     expect(evaluateRule(r, subject, { gross_volume_1d: 400_000, avg_gross_volume_30d: 100_000 }).fired).toBe(false); // under floor
     expect(evaluateRule(r, subject, { gross_volume_1d: 590_000, avg_gross_volume_30d: 200_000 }).fired).toBe(false);
   });
-  it("R-CB-NETWORK-PROX uses the policy threshold metric", () => {
+  it("R-CB-NETWORK-PROX compares the Visa VAMP ratio with the policy's early-warning line", () => {
     const r = rule("R-CB-NETWORK-PROX");
-    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0121, network_cb_threshold: 0.015, chargeback_count_30d: 40 }).fired).toBe(true);
-    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0119, network_cb_threshold: 0.015, chargeback_count_30d: 40 }).fired).toBe(false);
-    // Materiality floor: 4 chargebacks on a tiny merchant does not page anyone.
-    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.02, network_cb_threshold: 0.015, chargeback_count_30d: 4 }).fired).toBe(false);
+    const lines = { vamp_warning_line: 0.012, network_min_count: 10 };
+    expect(evaluateRule(r, subject, { ...lines, vamp_ratio_30d: 0.0121, vamp_count_30d: 40 }).fired).toBe(true);
+    expect(evaluateRule(r, subject, { ...lines, vamp_ratio_30d: 0.0119, vamp_count_30d: 40 }).fired).toBe(false);
+    // Materiality floor: 4 counts on a tiny merchant does not page anyone.
+    expect(evaluateRule(r, subject, { ...lines, vamp_ratio_30d: 0.02, vamp_count_30d: 4 }).fired).toBe(false);
+    // A card-present merchant has no VAMP denominator: null never fires.
+    expect(evaluateRule(r, subject, { ...lines, vamp_ratio_30d: null, vamp_count_30d: 0 }).fired).toBe(false);
+  });
+  it("R-MC-ECM fires on last month's breach or this month's early warning", () => {
+    const r = rule("R-MC-ECM");
+    const lines = { mc_ecm_line: 0.015, mc_ecm_warning_line: 0.012, mc_ecm_min_count: 100, network_min_count: 10 };
+    expect(evaluateRule(r, subject, { ...lines, mc_ecm_ratio_last_month: 0.016, mc_cb_count_last_month: 120, mc_ecm_ratio_mtd: 0, mc_cb_count_mtd: 0 }).fired).toBe(true);
+    // Over the line but under the program's 100-chargeback floor.
+    expect(evaluateRule(r, subject, { ...lines, mc_ecm_ratio_last_month: 0.03, mc_cb_count_last_month: 60, mc_ecm_ratio_mtd: 0.005, mc_cb_count_mtd: 20 }).fired).toBe(false);
+    expect(evaluateRule(r, subject, { ...lines, mc_ecm_ratio_last_month: 0.004, mc_cb_count_last_month: 40, mc_ecm_ratio_mtd: 0.0125, mc_cb_count_mtd: 30 }).fired).toBe(true);
   });
   it("R-CARD-TESTING", () => {
     const r = rule("R-CARD-TESTING");
@@ -157,7 +168,7 @@ describe("helpers", () => {
     expect(describeCondition({ metric: "gross_volume_1d", op: ">", value: { add: [1, { sub: [3, { div: [4, 2] }] }] } })).toContain("+");
   });
   it("collectMetrics finds metrics inside value expressions", () => {
-    expect([...collectMetrics(rule("R-CB-NETWORK-PROX").when)].sort()).toEqual(["cb_ratio_30d", "chargeback_count_30d", "network_cb_threshold"]);
+    expect([...collectMetrics(rule("R-CB-NETWORK-PROX").when)].sort()).toEqual(["network_min_count", "vamp_count_30d", "vamp_ratio_30d", "vamp_warning_line"]);
   });
 });
 

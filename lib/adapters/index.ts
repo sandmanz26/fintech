@@ -24,22 +24,33 @@ export type WebsiteResult = {
   checkedAt: string;
 };
 
-export type WatchlistMatch = { listName: "SANCTIONS_MOCK" | "TERMINATED_MERCHANT_MOCK" | "PEP_MOCK"; matchedName: string; matchScore: number };
+export type WatchlistMatch = { listName: "SANCTIONS_MOCK" | "TERMINATED_MERCHANT_MOCK" | "PEP_MOCK" | "TERMINATED_INTERNAL"; matchedName: string; matchScore: number };
+
+/** Ongoing monitoring of a live site (content, policies, restricted products). */
+export type WebsiteScanResult = WebsiteResult & { categories: string[]; restricted: string[] };
 
 export interface KybAdapter {
   verify(input: { legalName: string; registrationNo: string; country: string }): Promise<KybResult>;
 }
 export interface WebsiteCheckAdapter {
   check(url: string | null): Promise<WebsiteResult>;
+  /** Re-crawl a live merchant's site as of a date (weekly monitoring). */
+  scan(url: string, asOf: Date): Promise<WebsiteScanResult>;
 }
 export interface WatchlistAdapter {
-  screen(input: { fullName: string; dateOfBirth?: Date | null; nationality?: string | null }): Promise<WatchlistMatch[]>;
+  /** Screen against the lists as published on `asOf` (default: now). */
+  screen(input: { fullName: string; dateOfBirth?: Date | null; nationality?: string | null }, asOf?: Date): Promise<WatchlistMatch[]>;
+  /** Identifier of the list publication in force on `asOf`; a change means everyone is rescreened. */
+  listVersion(asOf: Date): string;
 }
 
 // --- Mock data: fictional names only -----------------------------------------------------
 
-/** Mock sanctions / PEP / terminated lists. Names are invented. */
-export const MOCK_LISTS: { listName: WatchlistMatch["listName"]; name: string }[] = [
+/**
+ * Mock sanctions / PEP / terminated lists. Names are invented. `listedFrom` dates a designation
+ * published after the demo starts, so ongoing screening has something to find.
+ */
+export const MOCK_LISTS: { listName: WatchlistMatch["listName"]; name: string; listedFrom?: string }[] = [
   { listName: "SANCTIONS_MOCK", name: "Viktor Halvorsen" },
   { listName: "SANCTIONS_MOCK", name: "Marek Dobrev" },
   { listName: "SANCTIONS_MOCK", name: "Oren Kasimov" },
@@ -47,7 +58,14 @@ export const MOCK_LISTS: { listName: WatchlistMatch["listName"]; name: string }[
   { listName: "PEP_MOCK", name: "Tomas Reinholt" },
   { listName: "TERMINATED_MERCHANT_MOCK", name: "Dario Kessling" },
   { listName: "TERMINATED_MERCHANT_MOCK", name: "Priya Halloran" },
+  // Designated on 1 Nov 2026; owns Beacon Consulting, an active LOW merchant in the seed.
+  { listName: "SANCTIONS_MOCK", name: "Yusuf Gupta", listedFrom: "2026-11-01" },
 ];
+
+const listedBy = (asOf: Date) => {
+  const d = asOf.toISOString().slice(0, 10);
+  return MOCK_LISTS.filter((e) => !e.listedFrom || e.listedFrom <= d);
+};
 
 function normalise(s: string) {
   return s.toLowerCase().normalize("NFKD").replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
@@ -68,13 +86,17 @@ export function nameSimilarity(a: string, b: string): number {
 }
 
 export const mockWatchlist: WatchlistAdapter = {
-  async screen({ fullName }) {
+  async screen({ fullName }, asOf = new Date()) {
     const out: WatchlistMatch[] = [];
-    for (const e of MOCK_LISTS) {
+    for (const e of listedBy(asOf)) {
       const s = nameSimilarity(fullName, e.name);
       if (s >= 75) out.push({ listName: e.listName, matchedName: e.name, matchScore: s });
     }
     return out;
+  },
+  listVersion(asOf) {
+    const dated = listedBy(asOf).flatMap((e) => (e.listedFrom ? [e.listedFrom] : [])).sort();
+    return `mock-lists@${dated.at(-1) ?? "base"}`;
   },
 };
 
@@ -110,6 +132,25 @@ export const mockWebsite: WebsiteCheckAdapter = {
       checkedAt: new Date().toISOString(),
     };
   },
+  async scan(url, asOf) {
+    const base = await mockWebsite.check(url);
+    const host = url.toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+    const d = asOf.toISOString().slice(0, 10);
+    const change = MOCK_SITE_CHANGES.filter((c) => c.host === host && c.from <= d).at(-1);
+    return {
+      ...base,
+      ...(change?.patch ?? {}),
+      checkedAt: asOf.toISOString(),
+      categories: change?.categories ?? [],
+      restricted: change?.restricted ?? [],
+    };
+  },
 };
+
+/** Dated changes the mock crawler "finds" on otherwise unchanged sites (fictional hosts). */
+export const MOCK_SITE_CHANGES: { host: string; from: string; categories: string[]; restricted: string[]; patch?: Partial<WebsiteResult> }[] = [
+  // A florist that starts selling prescription-only products and drops its refund policy.
+  { host: "thistleflowerco14.example", from: "2026-11-02", categories: ["Flowers", "Gifts", "Pharmacy"], restricted: ["Prescription medicines"], patch: { refundPolicy: false } },
+];
 
 export const adapters = { kyb: mockKyb, website: mockWebsite, watchlist: mockWatchlist };

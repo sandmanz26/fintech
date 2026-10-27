@@ -16,11 +16,15 @@ export default async function PortfolioPage() {
   const [p, tz] = await Promise.all([portfolioSummary(), viewerTz()]);
   const m = (v: bigint) => formatMoney(v, p.currency);
   const coverage = p.totals.exposure ? Number((p.totals.reserve * 1000n) / p.totals.exposure) / 1000 : 0;
-  const over80 = p.network.filter((n) => n.share >= 0.8);
+  const { lines, portfolioNetwork: pn } = p;
+  const earlyShare = lines.vampWarning / lines.vampLine;
+  const pastWarning = p.network.filter((n) => n.share >= earlyShare);
   const maxExposure = p.bands.reduce((a, b) => (b.exposure > a ? b.exposure : a), 1n);
-  const finding = over80.length
-    ? `${over80.length} merchant${over80.length === 1 ? " is" : "s are"} at 80% or more of the network chargeback line; reserves cover ${fmtPct(coverage, 0)} of total exposure.`
-    : `No merchant is within 80% of the network chargeback line; reserves cover ${fmtPct(coverage, 0)} of total exposure.`;
+  const pv = pn.vamp30.ratio;
+  const acquirerTier = pv === null ? null : pv >= lines.acquirerExcessive ? "excessive" : pv >= lines.acquirerAboveStandard ? "above standard" : null;
+  const finding =
+    `${pastWarning.length ? `${pastWarning.length} merchant${pastWarning.length === 1 ? " is" : "s are"}` : "No merchant is"} past the early-warning line on Visa or Mastercard. ` +
+    `Portfolio Visa VAMP is ${fmtPct(pv)}${acquirerTier ? `, in the acquirer's ${acquirerTier} tier` : pv !== null && pv >= lines.acquirerAboveStandard * earlyShare ? `, close to the acquirer's ${fmtPct(lines.acquirerAboveStandard, 1)} line` : `, under the acquirer's ${fmtPct(lines.acquirerAboveStandard, 1)} line`}; reserves cover ${fmtPct(coverage, 0)} of total exposure.`;
 
   return (
     <>
@@ -36,10 +40,15 @@ export default async function PortfolioPage() {
       </div>
 
       <div className="kpis" style={{ marginBottom: 16 }}>
-        <div className="kpi"><div className="kpi-label">Total exposure</div><div className="kpi-value money" style={{ fontSize: 28 }}>{m(p.totals.exposure)}</div><div className="kpi-sub">future delivery + dispute window</div></div>
+        <div className="kpi"><div className="kpi-label">Total exposure</div><div className="kpi-value money">{m(p.totals.exposure)}</div><div className="kpi-sub">future delivery + dispute window</div></div>
         <div className="kpi"><div className="kpi-label">Reserve held</div><div className="kpi-value money">{m(p.totals.reserve)}</div><div className="kpi-sub">covers {fmtPct(coverage, 0)}</div></div>
         <div className="kpi"><div className="kpi-label">Volume, 30 days</div><div className="kpi-value money">{m(p.totals.volume30)}</div><div className="kpi-sub">{p.totals.merchants} merchants processing</div></div>
-        <div className="kpi"><div className="kpi-label">Near the network line</div><div className="kpi-value num" style={{ color: over80.length ? "var(--negative)" : undefined }}>{over80.length}</div><div className="kpi-sub">at 80% or more of {fmtPct(p.threshold, 1)}</div></div>
+        <div className="kpi" title={`${lines.label}. The sponsor acquirer is assessed on the whole portfolio.`}>
+          <div className="kpi-label">Portfolio Visa VAMP, 30 days</div>
+          <div className="kpi-value num" style={{ color: acquirerTier || (pv !== null && pv >= lines.acquirerAboveStandard * earlyShare) ? "var(--negative)" : undefined }}>{fmtPct(pv)}</div>
+          <div className="kpi-sub num">acquirer lines {fmtPct(lines.acquirerAboveStandard, 1)} / {fmtPct(lines.acquirerExcessive, 1)} · {pn.vampLastMonth.basis} {fmtPct(pn.vampLastMonth.ratio)}</div>
+        </div>
+        <div className="kpi"><div className="kpi-label">Past an early-warning line</div><div className="kpi-value num" style={{ color: pastWarning.length ? "var(--negative)" : undefined }}>{pastWarning.length}</div><div className="kpi-sub">{fmtPct(earlyShare, 0)} of the Visa or Mastercard line</div></div>
       </div>
 
 
@@ -89,33 +98,51 @@ export default async function PortfolioPage() {
           <header>
             <div>
               <h2 id="net-h">Network watchlist</h2>
-              <div className="meta">30-day chargeback ratio against the {fmtPct(p.threshold, 1)} line · {p.networkLabel.toLowerCase()} · 10 chargebacks or more</div>
+              <div className="meta">Visa VAMP over 30 days and Mastercard ECM this month, each against its own line · {lines.label.toLowerCase()} · {lines.warningMinCount} counts or more</div>
             </div>
           </header>
           {p.network.length ? (
             <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {p.network.slice(0, 6).map((n) => {
                 const watched = n.share >= 0.5;
+                const visaLeads = n.vampShare >= n.ecmShare;
+                const lead = visaLeads ? { name: "Visa VAMP", ratio: n.vamp.ratio, share: n.vampShare } : { name: "Mastercard ECM", ratio: n.ecm.ratio, share: n.ecmShare };
+                const other = visaLeads ? `Mastercard, ${n.ecm.basis} ${fmtPct(n.ecm.ratio)}` : `Visa, 30 days ${fmtPct(n.vamp.ratio)}`;
                 return (
                   <li key={n.id} style={{ padding: "8px 0", borderTop: "1px solid var(--rule)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                       <Link className="link truncate" href={`/merchants/${n.id}`} style={{ color: watched ? undefined : "var(--muted)", fontWeight: watched ? 500 : 400 }}>{n.name}</Link>
-                      <span className="num" style={{ flex: "none" }}>{fmtPct(n.ratio)} <span className="meta">{Math.round(n.share * 100)}% of line</span></span>
+                      <span className="num" style={{ flex: "none" }}>{lead.name} {fmtPct(lead.ratio)}</span>
                     </div>
                     <div aria-hidden style={{ position: "relative", height: 6, marginTop: 6, background: "var(--rule)", borderRadius: 2 }}>
-                      <div style={{ height: 6, width: `${Math.min(100, (n.share / 1.25) * 100)}%`, background: n.share >= 0.8 ? "var(--negative)" : watched ? "var(--text)" : "var(--chart-muted)", borderRadius: 2 }} />
-                      {[0.5, 0.8, 1].map((t) => (
+                      <div style={{ height: 6, width: `${Math.min(100, (n.share / 1.25) * 100)}%`, background: n.share >= earlyShare ? "var(--negative)" : watched ? "var(--text)" : "var(--chart-muted)", borderRadius: 2 }} />
+                      {[0.5, earlyShare, 1].map((t) => (
                         <span key={t} style={{ position: "absolute", left: `${(t / 1.25) * 100}%`, top: -3, width: 1, height: 12, background: t === 1 ? "var(--text)" : "var(--control)" }} />
                       ))}
                     </div>
+                    <div className="meta num" style={{ marginTop: 4 }}>{Math.round(lead.share * 100)}% of the {visaLeads ? "Visa" : "Mastercard"} line · {other} · {fmtPct(n.contribution, 0)} of the portfolio&apos;s Visa count</div>
                   </li>
                 );
               })}
             </ol>
           ) : (
-            <div className="empty">No merchant has 10 or more chargebacks in 30 days.</div>
+            <div className="empty">No merchant has {lines.warningMinCount} or more Visa fraud reports and disputes in 30 days, or Mastercard chargebacks this month.</div>
           )}
-          <div className="meta" style={{ marginTop: 8 }}>Ticks at 50%, 80% and 100% of the line. Below 50% in grey, for reference.</div>
+          <div className="meta" style={{ marginTop: 8 }}>Ticks at 50%, {fmtPct(earlyShare, 0)} and 100% of the line. Below 50% in grey, for reference.</div>
+          {p.contributors.length ? (
+            <div style={{ marginTop: 14 }} data-testid="vamp-contributors">
+              <h3 style={{ fontSize: 13, fontWeight: 500, margin: "0 0 4px" }}>Largest contributors to portfolio VAMP</h3>
+              <div className="meta" style={{ marginBottom: 4 }}>
+                {pn.vamp30.count.toLocaleString()} Visa fraud reports and disputes over {pn.vamp30.denominator.toLocaleString()} card-not-present sales, 30 days
+              </div>
+              {p.contributors.map((c) => (
+                <div key={c.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "3px 0" }}>
+                  <Link className="link truncate" href={`/merchants/${c.id}`}>{c.name}</Link>
+                  <span className="num" style={{ flex: "none" }}>{fmtPct(c.contribution, 0)} <span className="meta">{c.vamp.count}</span></span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       </div>
       <div className="grid-1-1" style={{ marginBottom: 16, alignItems: "stretch" }}>
