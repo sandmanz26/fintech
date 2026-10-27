@@ -25,6 +25,7 @@ const securityHeaders = [
 const config: NextConfig = {
   serverExternalPackages: ["pg-boss", "pino"],
   eslint: { ignoreDuringBuilds: true },
+  devIndicators: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

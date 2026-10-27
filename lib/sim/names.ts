@@ -17,7 +17,7 @@ export const LAST_NAMES = [
   "Petrov", "Rahman", "Silva", "Thompson", "Uddin", "Vasquez", "Weber", "Young",
 ];
 
-const PLACES = ["Harbor", "Copperleaf", "Northgate", "Willow", "Granite", "Bluebell", "Saltmarsh", "Juniper", "Redwood", "Lantern", "Meridian", "Foxglove", "Ironbridge", "Quarry", "Sunfield", "Tidewater", "Orchard", "Kestrel", "Marble", "Cedar", "Driftwood", "Hollow", "Ember", "Prairie", "Summit", "Thistle", "Riverbend", "Larkspur", "Beacon", "Clover"];
+const PLACES = ["Harbor", "Copperleaf", "Northgate", "Willow", "Granite", "Bluebell", "Saltmarsh", "Juniper", "Redwood", "Lantern", "Meridian", "Foxglove", "Ironbridge", "Quarry", "Sunfield", "Tidewater", "Orchard", "Wren", "Marble", "Cedar", "Driftwood", "Hollow", "Ember", "Prairie", "Summit", "Thistle", "Riverbend", "Larkspur", "Beacon", "Clover", "Alder"];
 
 /** Business nouns per MCC, so a name reads like the trade. */
 export const TRADE_BY_MCC: Record<string, string[]> = {
