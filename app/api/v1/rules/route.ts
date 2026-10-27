@@ -14,6 +14,6 @@ const CreateSchema = z.object({ name: z.string().trim().min(3), description: z.s
 /** POST /rules — a new rule with its first version. */
 export const POST = route({ cap: "rules.write" }, async (req, { user }) => {
   const input = await body(req, CreateSchema);
-  const r = await createRuleVersion(toActor(user), { ...input });
+  const r = await createRuleVersion(toActor(user), { ...input, definition: input.definition });
   return json(r, { status: 201 });
 });
