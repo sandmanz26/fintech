@@ -4,6 +4,8 @@ type Seed = { key: string; name: string; description: string; definition: RuleDe
 
 const monitored = { merchantStatus: ["ACTIVE", "UNDER_REVIEW", "RESTRICTED"], minAgeDays: 14 };
 const dedupe = { windowHours: 24, keyTemplate: "{ruleKey}:{merchantId}:{date}" };
+// Ratio rules stay true for weeks once crossed; re-alert weekly, not daily.
+const weekly = { windowHours: 168, keyTemplate: "{ruleKey}:{merchantId}:{date}" };
 
 /** The nine default monitoring rules (PRD §6.3). Money in minor units, ratios as fractions. */
 export const DEFAULT_RULES: Seed[] = [
@@ -37,7 +39,7 @@ export const DEFAULT_RULES: Seed[] = [
       when: { metric: "volume_vs_expected_monthly", op: ">", value: 1.5 },
       filters: monitored,
       severity: "MEDIUM",
-      dedupe: { windowHours: 168, keyTemplate: "{ruleKey}:{merchantId}:{date}" },
+      dedupe: weekly,
       autoCase: { enabled: true, caseType: "MONITORING", priority: "MEDIUM", slaHours: 72 },
       evidenceMetrics: ["gross_volume_30d", "expected_monthly_volume"],
     },
@@ -57,7 +59,7 @@ export const DEFAULT_RULES: Seed[] = [
       },
       filters: monitored,
       severity: "HIGH",
-      dedupe,
+      dedupe: weekly,
       autoCase: { enabled: true, caseType: "DISPUTE_SPIKE", priority: "HIGH", slaHours: 24 },
       evidenceMetrics: ["cb_ratio_30d", "chargeback_count_30d", "settled_count_30d"],
     },
@@ -65,14 +67,19 @@ export const DEFAULT_RULES: Seed[] = [
   {
     key: "R-CB-NETWORK-PROX",
     name: "Near the network threshold",
-    description: "30-day chargeback ratio at or above 80% of the network threshold configured in policy.",
+    description: "30-day chargeback ratio at or above 80% of the network threshold configured in policy, with at least 10 chargebacks so a handful of disputes on a tiny merchant does not page anyone.",
     definition: {
       key: "R-CB-NETWORK-PROX",
       scope: "merchant_daily",
-      when: { metric: "cb_ratio_30d", op: ">=", value: { mul: [0.8, { metric: "network_cb_threshold" }] } },
+      when: {
+        all: [
+          { metric: "cb_ratio_30d", op: ">=", value: { mul: [0.8, { metric: "network_cb_threshold" }] } },
+          { metric: "chargeback_count_30d", op: ">=", value: 10 },
+        ],
+      },
       filters: monitored,
       severity: "CRITICAL",
-      dedupe,
+      dedupe: weekly,
       autoCase: { enabled: true, caseType: "DISPUTE_SPIKE", priority: "CRITICAL", slaHours: 4 },
       evidenceMetrics: ["cb_ratio_30d", "network_cb_threshold", "chargeback_count_30d"],
     },
@@ -87,7 +94,7 @@ export const DEFAULT_RULES: Seed[] = [
       when: { metric: "refund_ratio_30d", op: ">", value: 0.1 },
       filters: monitored,
       severity: "MEDIUM",
-      dedupe,
+      dedupe: weekly,
       autoCase: { enabled: false, caseType: "MONITORING" },
       evidenceMetrics: ["refund_ratio_30d", "settled_count_30d"],
     },
@@ -142,7 +149,7 @@ export const DEFAULT_RULES: Seed[] = [
       },
       filters: monitored,
       severity: "MEDIUM",
-      dedupe,
+      dedupe: weekly,
       autoCase: { enabled: false, caseType: "MONITORING" },
       evidenceMetrics: ["cross_border_pct_7d"],
     },

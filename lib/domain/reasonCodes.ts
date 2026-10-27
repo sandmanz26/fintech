@@ -1,0 +1,48 @@
+/** Seeded reason codes (PRD §11: 40). Merchant-facing text is plain language, no internal terms. */
+export const REASON_CODES: { code: string; category: string; label: string; merchantFacingText: string }[] = [
+  // Underwriting (10)
+  { code: "UW-STANDARD", category: "UNDERWRITING", label: "Meets standard criteria", merchantFacingText: "Your application has been approved." },
+  { code: "UW-CONDITIONS-DELIVERY", category: "UNDERWRITING", label: "Approved with conditions: delayed delivery", merchantFacingText: "Your application is approved. Because your customers receive their purchase some time after paying, we hold part of each day's sales for a period." },
+  { code: "UW-CONDITIONS-NEW", category: "UNDERWRITING", label: "Approved with conditions: new business", merchantFacingText: "Your application is approved with starting limits that we review as your business builds a track record with us." },
+  { code: "UW-CONDITIONS-VOLUME", category: "UNDERWRITING", label: "Approved with conditions: high volume", merchantFacingText: "Your application is approved with limits sized to the volume you expect." },
+  { code: "UW-DECLINE-PROHIBITED", category: "UNDERWRITING", label: "Prohibited business type", merchantFacingText: "We are not able to support this type of business." },
+  { code: "UW-DECLINE-KYB", category: "UNDERWRITING", label: "Business could not be verified", merchantFacingText: "We could not verify your business registration with the details provided." },
+  { code: "UW-DECLINE-OWNERSHIP", category: "UNDERWRITING", label: "Ownership could not be verified", merchantFacingText: "We could not verify the owners of the business with the details provided." },
+  { code: "UW-DECLINE-SCREENING", category: "UNDERWRITING", label: "Screening result", merchantFacingText: "We are unable to offer you an account at this time." },
+  { code: "UW-DECLINE-RISK", category: "UNDERWRITING", label: "Risk outside appetite", merchantFacingText: "After reviewing your application, we are unable to offer you an account at this time." },
+  { code: "UW-DECLINE-WEBSITE", category: "UNDERWRITING", label: "Website does not meet requirements", merchantFacingText: "Your website needs a clear refund policy, terms of service and contact details before we can approve your account." },
+  // Control (9)
+  { code: "CT-FUTURE-DELIVERY", category: "CONTROL", label: "Future delivery exposure", merchantFacingText: "Because customers receive their purchase well after paying, we keep part of your sales aside until delivery." },
+  { code: "CT-CHARGEBACKS", category: "CONTROL", label: "Elevated chargebacks", merchantFacingText: "More of your customers than usual are disputing payments with their bank." },
+  { code: "CT-VOLUME-SPIKE", category: "CONTROL", label: "Unusual volume", merchantFacingText: "Your recent sales are much higher than the volume you told us to expect." },
+  { code: "CT-CARD-TESTING", category: "CONTROL", label: "Suspected card testing", merchantFacingText: "We saw a large number of very small, unsuccessful payments on your account, which can mean someone is testing stolen cards." },
+  { code: "CT-NEW-MERCHANT", category: "CONTROL", label: "New merchant ramp-up", merchantFacingText: "This is a standard limit for new accounts while you build a history with us." },
+  { code: "CT-INVESTIGATION", category: "CONTROL", label: "Open investigation", merchantFacingText: "We are reviewing recent activity on your account." },
+  { code: "CT-COMPLIANCE", category: "CONTROL", label: "Compliance review", merchantFacingText: "We are completing a required review of your account." },
+  { code: "CT-NETWORK-THRESHOLD", category: "CONTROL", label: "Near card-network threshold", merchantFacingText: "Your dispute rate is close to the limit set by the card networks." },
+  { code: "CT-REVIEW-COMPLETE", category: "CONTROL", label: "Review complete, control lifted", merchantFacingText: "We have completed our review and returned your account to normal settings." },
+  // Alert dismissal (7)
+  { code: "AD-EXPECTED-SEASONAL", category: "ALERT_DISMISS", label: "Expected seasonal activity", merchantFacingText: "" },
+  { code: "AD-KNOWN-PROMOTION", category: "ALERT_DISMISS", label: "Known promotion or event", merchantFacingText: "" },
+  { code: "AD-DUPLICATE", category: "ALERT_DISMISS", label: "Duplicate of another alert", merchantFacingText: "" },
+  { code: "AD-DATA-ISSUE", category: "ALERT_DISMISS", label: "Data issue", merchantFacingText: "" },
+  { code: "AD-BELOW-MATERIALITY", category: "ALERT_DISMISS", label: "Below materiality", merchantFacingText: "" },
+  { code: "AD-ALREADY-CONTROLLED", category: "ALERT_DISMISS", label: "Already covered by a control", merchantFacingText: "" },
+  { code: "AD-VERIFIED-LEGITIMATE", category: "ALERT_DISMISS", label: "Verified legitimate with merchant", merchantFacingText: "" },
+  // Case resolution (8)
+  { code: "CR-NO-ACTION", category: "CASE_RESOLUTION", label: "Reviewed, no action needed", merchantFacingText: "" },
+  { code: "CR-EXPLAINED", category: "CASE_RESOLUTION", label: "Merchant explained the activity", merchantFacingText: "" },
+  { code: "CR-CONTROL-APPLIED", category: "CASE_RESOLUTION", label: "Control applied", merchantFacingText: "" },
+  { code: "CR-CONTROL-REMOVED", category: "CASE_RESOLUTION", label: "Control removed", merchantFacingText: "" },
+  { code: "CR-TERMINATED", category: "CASE_RESOLUTION", label: "Merchant terminated", merchantFacingText: "" },
+  { code: "CR-UW-DECIDED", category: "CASE_RESOLUTION", label: "Underwriting decided", merchantFacingText: "" },
+  { code: "CR-MONITOR", category: "CASE_RESOLUTION", label: "Monitor; recheck at next review", merchantFacingText: "" },
+  { code: "CR-OTHER", category: "CASE_RESOLUTION", label: "Other (see note)", merchantFacingText: "" },
+  // Termination (6)
+  { code: "TR-FRAUD", category: "TERMINATION", label: "Fraud", merchantFacingText: "We have closed your account because of activity that breaches our terms of service." },
+  { code: "TR-CHARGEBACKS", category: "TERMINATION", label: "Excessive chargebacks", merchantFacingText: "We have closed your account because the share of disputed payments stayed above the level we can support." },
+  { code: "TR-PRODUCT-POLICY", category: "TERMINATION", label: "Product policy violation", merchantFacingText: "We have closed your account because the products sold are not permitted under our terms of service." },
+  { code: "TR-COMPLIANCE", category: "TERMINATION", label: "Compliance or sanctions", merchantFacingText: "We have closed your account to meet our legal and regulatory obligations." },
+  { code: "TR-MERCHANT-REQUEST", category: "TERMINATION", label: "Merchant request", merchantFacingText: "We have closed your account as you asked." },
+  { code: "TR-INACTIVE", category: "TERMINATION", label: "Inactive account", merchantFacingText: "We have closed your account because it has not been used for a long time." },
+];

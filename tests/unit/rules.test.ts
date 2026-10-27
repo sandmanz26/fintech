@@ -120,8 +120,10 @@ describe("evaluateRule with the default rules", () => {
   });
   it("R-CB-NETWORK-PROX uses the policy threshold metric", () => {
     const r = rule("R-CB-NETWORK-PROX");
-    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0121, network_cb_threshold: 0.015 }).fired).toBe(true);
-    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0119, network_cb_threshold: 0.015 }).fired).toBe(false);
+    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0121, network_cb_threshold: 0.015, chargeback_count_30d: 40 }).fired).toBe(true);
+    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.0119, network_cb_threshold: 0.015, chargeback_count_30d: 40 }).fired).toBe(false);
+    // Materiality floor: 4 chargebacks on a tiny merchant does not page anyone.
+    expect(evaluateRule(r, subject, { cb_ratio_30d: 0.02, network_cb_threshold: 0.015, chargeback_count_30d: 4 }).fired).toBe(false);
   });
   it("R-CARD-TESTING", () => {
     const r = rule("R-CARD-TESTING");
@@ -155,7 +157,7 @@ describe("helpers", () => {
     expect(describeCondition({ metric: "gross_volume_1d", op: ">", value: { add: [1, { sub: [3, { div: [4, 2] }] }] } })).toContain("+");
   });
   it("collectMetrics finds metrics inside value expressions", () => {
-    expect([...collectMetrics(rule("R-CB-NETWORK-PROX").when)].sort()).toEqual(["cb_ratio_30d", "network_cb_threshold"]);
+    expect([...collectMetrics(rule("R-CB-NETWORK-PROX").when)].sort()).toEqual(["cb_ratio_30d", "chargeback_count_30d", "network_cb_threshold"]);
   });
 });
 

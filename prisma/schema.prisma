@@ -133,6 +133,8 @@ model Merchant {
   assignedToId               String?
   activatedAt                DateTime? // (+)
   nextReviewAt               DateTime? // (+) periodic re-score due date
+  offboardedAt               DateTime? // (+) termination approved / voluntary closure
+  disputeWindowEndsAt        DateTime? // (+) reserve held until this date after offboarding
   createdAt                  DateTime       @default(now())
   updatedAt                  DateTime       @updatedAt
   owners                     Owner[]

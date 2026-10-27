@@ -16,7 +16,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:reset": "prisma migrate reset --force --skip-seed",
-    "seed": "tsx prisma/seed.ts",
+    "seed": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts",
+    "seed:only": "tsx prisma/seed.ts",
+    "simulate": "tsx jobs/simulate-transactions.ts",
     "worker": "tsx jobs/worker.ts",
     "demo:advance-day": "tsx jobs/advance-day.ts"
   },

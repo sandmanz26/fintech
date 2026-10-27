@@ -1,6 +1,7 @@
 import type { Role } from "@prisma/client";
 import { db, type Tx } from "@/lib/db";
 import { jsonSafe } from "@/lib/money";
+import { now } from "@/lib/clock";
 import { GENESIS_HASH, computeAuditHash, type VerifyResult } from "./hash";
 
 export type Actor = { id: string | null; role: Role | null };
@@ -25,7 +26,8 @@ export async function record(tx: Tx, actor: Actor, entry: AuditEntry): Promise<v
   await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${AUDIT_LOCK_KEY})`);
   const last = await tx.auditLog.findFirst({ orderBy: { id: "desc" }, select: { hash: true } });
   const prevHash = last?.hash ?? GENESIS_HASH;
-  const occurredAt = new Date();
+  // The demo runs on a simulated calendar (lib/clock.ts); in production SimClock tracks real time.
+  const occurredAt = await now(tx);
   const before = entry.before === undefined ? null : jsonSafe(entry.before);
   const after = entry.after === undefined ? null : jsonSafe(entry.after);
   const hash = computeAuditHash({
