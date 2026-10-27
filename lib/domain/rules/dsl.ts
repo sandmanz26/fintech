@@ -251,25 +251,35 @@ export function dedupeKey(def: RuleDefinition, subject: RuleSubject): string {
     .replaceAll("{date}", subject.date);
 }
 
+/** Constants read in the metric's unit: minor units as dollars, ratios as percentages. */
+function constant(v: number, unit: string): string {
+  if (unit === "money") return `$${(v / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  if (unit === "ratio" && v < 1) return `${+(v * 100).toFixed(3)}%`;
+  return String(v);
+}
+
 /** Human-readable sentence for a condition, used in Rules Studio and alert evidence. */
 export function describeCondition(c: Condition): string {
   if ("all" in c) return c.all.map(describeCondition).join(" and ");
   if ("any" in c) return `(${c.any.map(describeCondition).join(" or ")})`;
   if ("not" in c) return `not (${describeCondition(c.not)})`;
   const label = METRICS[c.metric].label.toLowerCase();
-  const val = (v: ValueExpr): string => {
-    if (typeof v === "number") return String(v);
+  const unit = METRICS[c.metric].unit;
+  // Constants that stand for the metric (bare, or added/subtracted) take its unit; factors in a
+  // product or quotient are plain numbers ("3 × average daily volume").
+  const val = (v: ValueExpr, inUnit = true): string => {
+    if (typeof v === "number") return inUnit ? constant(v, unit) : String(v);
     if ("metric" in v) return METRICS[v.metric].label.toLowerCase();
-    if ("mul" in v) return v.mul.map(val).join(" × ");
-    if ("add" in v) return v.add.map(val).join(" + ");
-    if ("sub" in v) return v.sub.map(val).join(" − ");
-    if ("div" in v) return v.div.map(val).join(" ÷ ");
+    if ("mul" in v) return v.mul.map((x) => val(x, false)).join(" × ");
+    if ("add" in v) return v.add.map((x) => val(x, inUnit)).join(" + ");
+    if ("sub" in v) return v.sub.map((x) => val(x, inUnit)).join(" − ");
+    if ("div" in v) return v.div.map((x) => val(x, false)).join(" ÷ ");
     return "?";
   };
   if (c.op === "between") {
     const [a, b] = c.value as ValueExpr[];
     return `${label} between ${val(a)} and ${val(b)}`;
   }
-  if (c.op === "in") return `${label} in ${(c.value as number[]).join(", ")}`;
+  if (c.op === "in") return `${label} in ${(c.value as number[]).map((x) => constant(x, unit)).join(", ")}`;
   return `${label} ${c.op} ${val(c.value as ValueExpr)}`;
 }

@@ -244,6 +244,15 @@ textarea.input { height: auto; min-height: 76px; padding: 8px 10px; resize: vert
 .timeline > li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--rule); }
 .timeline > li:first-child { border-top: 0; }
 .phone-only { display: none; }
+/* Case: evidence and timeline in one reading column, actions pinned beside them. */
+.case-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 16px; align-items: start; }
+.case-grid > .case-main { display: grid; gap: 16px; min-width: 0; }
+.case-grid > aside { position: sticky; top: 16px; }
+@media (max-width: 960px) {
+  .approvals-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .case-grid { grid-template-columns: minmax(0, 1fr); }
+  .case-grid > aside { position: static; order: -1; }
+}
 @media (max-width: 1100px) {
   .grid-2-1, .grid-1-1, .grid-3 { grid-template-columns: minmax(0, 1fr); }
 }
@@ -252,6 +261,8 @@ textarea.input { height: auto; min-height: 76px; padding: 8px 10px; resize: vert
   .uw-grid > :first-child { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 960px) {
+  .case-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .case-grid > :nth-child(3) { grid-column: 1; grid-row: 1; }
   .uw-grid { grid-template-columns: minmax(0, 1fr) !important; }
   .uw-grid > :first-child { grid-template-columns: minmax(0, 1fr); }
 }

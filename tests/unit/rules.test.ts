@@ -149,10 +149,10 @@ describe("evaluateRule with the default rules", () => {
 describe("helpers", () => {
   it("describeCondition reads as a sentence", () => {
     expect(describeCondition(rule("R-VOL-SPIKE").when)).toBe(
-      "volume today > 3 × average daily volume, 30 days and volume today > 500000",
+      "volume today > 3 × average daily volume, 30 days and volume today > $5,000",
     );
     expect(describeCondition({ any: [{ metric: "cb_ratio_30d", op: "between", value: [0, 1] }, { not: { metric: "is_domestic", op: "in", value: [1] } }] })).toBe(
-      "(chargeback ratio, 30 days between 0 and 1 or not (domestic merchant (1 = yes) in 1))",
+      "(chargeback ratio, 30 days between 0% and 1 or not (domestic merchant (1 = yes) in 1))",
     );
     expect(describeCondition({ metric: "gross_volume_1d", op: ">", value: { add: [1, { sub: [3, { div: [4, 2] }] }] } })).toContain("+");
   });

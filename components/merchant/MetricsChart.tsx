@@ -22,7 +22,7 @@ export function MetricsChart({ rows, markers, networkThreshold, networkLabel }: 
   }));
   return (
     <section className="panel" aria-labelledby="chart-h">
-      <header>
+      <header style={{ flexWrap: "wrap" }}>
         <div>
           <h2 id="chart-h">Last 90 days</h2>
           <div className="meta">{metric === "cb" ? "Rolling 30-day ratio of chargebacks received to settled sales" : "Daily, settled sales"} · ticks mark alerts and controls</div>
