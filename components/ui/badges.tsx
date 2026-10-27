@@ -19,7 +19,7 @@ export function BandPill({ band, score }: { band: RiskBand | null | undefined; s
   return (
     <span className={clsx("pill", b.cls)} data-band={band}>
       {b.label}
-      {score !== undefined && score !== null && band !== "PROHIBITED" ? <span className="num" style={{ opacity: 0.8 }}>{score}</span> : null}
+      {score !== undefined && score !== null && band !== "PROHIBITED" ? <span className="num" style={{ fontWeight: 400 }}>{score}</span> : null}
     </span>
   );
 }

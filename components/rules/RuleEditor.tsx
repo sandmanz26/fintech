@@ -181,9 +181,9 @@ export function RuleEditor({
       <section className="panel" aria-labelledby="ed-h">
         <header>
           <h2 id="ed-h">Definition</h2>
-          <div className="segmented" role="tablist" aria-label="Editor">
-            <button role="tab" aria-pressed={tab === "visual"} aria-selected={tab === "visual"} onClick={() => switchTab("visual")}>Form</button>
-            <button role="tab" aria-pressed={tab === "json"} aria-selected={tab === "json"} onClick={() => switchTab("json")} data-testid="json-tab">View JSON</button>
+          <div className="segmented" role="group" aria-label="Editor view">
+            <button type="button" aria-pressed={tab === "visual"} onClick={() => switchTab("visual")}>Form</button>
+            <button type="button" aria-pressed={tab === "json"} onClick={() => switchTab("json")} data-testid="json-tab">View JSON</button>
           </div>
         </header>
         <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 14 }}>

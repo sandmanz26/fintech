@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "NEXT_DIST_DIR=.next-e2e next build && playwright test",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:reset": "prisma migrate reset --force --skip-seed",
@@ -20,7 +20,9 @@
     "seed:only": "tsx prisma/seed.ts",
     "simulate": "tsx jobs/simulate-transactions.ts",
     "worker": "tsx jobs/worker.ts",
-    "demo:advance-day": "tsx jobs/advance-day.ts"
+    "demo:advance-day": "tsx jobs/advance-day.ts",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "seed:template": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sentinel_tpl?schema=public sh -c \"prisma migrate deploy && tsx prisma/seed.ts\""
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
