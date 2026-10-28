@@ -13,6 +13,16 @@ recorded here. Design decisions are in `DESIGN.md`.
 | Demo login: one click per persona (Auth.js Credentials, JWT session) | PRD §4.1. Swapping to SSO changes only `auth.ts`. |
 | RBAC lives in `lib/auth/rbac.ts` and is checked in route handlers **and** services | The UI reads the same table only to hide controls. Pages a role may not use render a "Not available for your role" screen. |
 
+## Demo mode (no backend)
+
+| Decision | Why |
+|---|---|
+| Without `DATABASE_URL` the app runs on PGlite (Postgres in WebAssembly) behind a local socket, loaded from a seeded snapshot | "No backend" without rewriting ~60 services against a fake: the same Prisma queries, triggers, advisory locks and audit chain run on real Postgres semantics. Verified: the seed produces identical counts on PGlite and Postgres 16. |
+| The snapshot keeps 45 days of raw transactions (plus any with a dispute or fraud report) and all 120 days of daily metrics | 22 MB compressed, ~1.5 s cold start, ~700 MB memory, instead of 59 MB / 9 s / 1.4 GB for everything. Charts, ratios and rules read the daily metrics. |
+| Demo mode signs JWTs with a fixed, public secret when `AUTH_SECRET` is unset | Login is a persona click on fictional data; a real deployment sets `AUTH_SECRET` (and the middleware refuses to run without it outside demo mode). |
+| The calendar can be moved from the UI ("Next day") | There is no worker or terminal in a serverless demo. Any persona in demo mode; head of risk or admin otherwise. Audited as `DEMO_DAY_ADVANCED`. |
+| Story cases are staged within SLA from the demo's first day; most historical cases are worked and closed | A queue where every case is weeks past SLA reads as a broken product, not a busy team. |
+
 ## Time and money
 
 | Decision | Why |

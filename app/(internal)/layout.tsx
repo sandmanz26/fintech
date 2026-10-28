@@ -5,6 +5,7 @@ import { TimezoneSync } from "@/components/shell/TimezoneSync";
 import { sidebarCounts } from "@/lib/queries/queues";
 import { can, ROLE_LABEL } from "@/lib/auth/rbac";
 import { simToday } from "@/lib/clock";
+import { isMockMode } from "@/lib/mode";
 import { fmtDate } from "@/lib/format";
 import { KeyboardShortcuts } from "@/components/shell/KeyboardShortcuts";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -35,6 +36,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
           underwriting: can(user.role, "underwriting.decide.standard") || can(user.role, "case.read"),
         }}
         today={fmtDate(today, "UTC")}
+        demo={{ mock: isMockMode(), canAdvance: isMockMode() || can(user.role, "policy.write") }}
         signOutAction={doSignOut}
       />
       <main className="canvas" id="main">

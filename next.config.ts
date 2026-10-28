@@ -23,7 +23,11 @@ const securityHeaders = [
 ];
 
 const config: NextConfig = {
-  serverExternalPackages: ["pg-boss", "pino"],
+  serverExternalPackages: ["pg-boss", "pino", "@electric-sql/pglite", "@electric-sql/pglite-socket"],
+  // Demo mode ships the mock database snapshot and PGlite's WebAssembly with every server function.
+  outputFileTracingIncludes: {
+    "/**": [".mock-db/**", "node_modules/@electric-sql/pglite/dist/**", "node_modules/@electric-sql/pglite-socket/dist/**"],
+  },
   eslint: { ignoreDuringBuilds: true },
   devIndicators: false,
   // E2E builds into its own folder so it can run next to `next dev`.

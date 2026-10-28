@@ -1,0 +1,53 @@
+import { test, expect, type Page } from "@playwright/test";
+
+const toast = (page: Page, text: RegExp) => expect(page.getByRole("status").filter({ hasText: text }).first()).toBeVisible();
+
+test("brand assets are served", async ({ request }) => {
+  for (const path of ["/favicon.ico", "/icon.svg", "/apple-icon.png", "/opengraph-image.png", "/logo.svg"]) {
+    const r = await request.get(path);
+    expect(r.status(), path).toBe(200);
+  }
+});
+
+test("demo journey: story from sign-in, four-eyes hand-off, calendar", async ({ page }) => {
+  // Sign-in page leads with the guided stories.
+  await page.goto("/login");
+  await expect(page.getByTestId("stories")).toContainText("Card testing: hold payouts with four-eyes");
+  await expect(page.getByTestId("story-S3")).toContainText("To do");
+
+  // S3: one click signs in as Rina and opens the case.
+  await page.getByTestId("start-S3").click();
+  await expect(page).toHaveURL(/\/cases\//);
+  await expect(page.getByTestId("alert-R-CARD-TESTING")).toBeVisible();
+  await page.getByTestId("start-review").click();
+  await expect(page.getByTestId("case-status")).toHaveText("In review");
+  await page.getByTestId("case-add-control").click();
+  const editor = page.getByTestId("control-editor");
+  await editor.getByLabel("Type").selectOption("PAYOUT_HOLD");
+  await editor.getByLabel("Reason").selectOption("CT-CARD-TESTING");
+  await editor.getByLabel("Why, for the file").fill("620 sub-$2 authorisations in one day, 72% declined: card testing.");
+  await editor.getByTestId("control-submit").click();
+  await toast(page, /Sent for approval/);
+
+  // The dashboard guide hands the next step to Laura in one click.
+  await page.goto("/dashboard");
+  const guide = page.getByTestId("demo-guide");
+  await expect(guide).toContainText("Laura (head of risk) reviews and approves the request");
+  await page.getByTestId("guide-switch-S3").click();
+  await expect(page).toHaveURL(/\/approvals\?id=/);
+  await expect(page.getByTestId("approval-detail")).toContainText("Requested by Rina Halim");
+  await page.getByTestId("approval-note").fill("Card testing confirmed; hold until checkout is secured.");
+  await page.getByTestId("approve").click();
+  await toast(page, /Approved and carried out/);
+
+  // The story reads as done everywhere.
+  await page.goto("/login?switch=1");
+  await expect(page.getByTestId("story-S3")).toContainText("Done");
+
+  // The calendar moves on from the sidebar: a day of trading and every daily job.
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("demo-calendar")).toContainText("Oct 27, 2026");
+  await page.getByTestId("advance-day").click();
+  await toast(page, /Now Oct 28\. [\d,]+ transactions simulated/);
+  await expect(page.getByTestId("demo-calendar")).toContainText("Oct 28, 2026");
+});

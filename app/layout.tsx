@@ -7,7 +7,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Sentinel", template: "%s · Sentinel" },
   description: "Merchant risk lifecycle workspace",
-  icons: { icon: "/icon.svg" },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -534,17 +534,19 @@ async function main() {
     await setSimToday(addDays(utcDay(c.createdAt), 0));
     invalidateClock();
     await assignCase(c.id, users[who].id, actor(who));
+    // A working team closes most of what comes in: ~70% reviewed and closed, ~15% closed with a
+    // control, ~10% in review waiting on information, ~5% still only assigned.
     const roll = r.next();
-    if (roll < 0.8) {
+    if (roll < 0.95) {
       await transitionCase(c.id, "IN_REVIEW", actor(who));
       await setSimToday(addDays(utcDay(c.createdAt), 1));
       invalidateClock();
-      if (roll < 0.55) {
+      if (roll < 0.7) {
         for (const a of c.alerts) {
           if (r.chance(0.7)) await dismissAlert(a.id, r.pick(["AD-EXPECTED-SEASONAL", "AD-KNOWN-PROMOTION", "AD-BELOW-MATERIALITY", "AD-VERIFIED-LEGITIMATE"]), "Reviewed against order history; consistent with the business.", actor(who));
         }
         await transitionCase(c.id, "RESOLVED", actor(who), { reasonCode: r.pick(["CR-NO-ACTION", "CR-EXPLAINED", "CR-MONITOR"]), note: "Activity reviewed against the merchant's profile and history." });
-      } else if (roll < 0.7) {
+      } else if (roll < 0.85) {
         const m = await db.merchant.findUniqueOrThrow({ where: { id: c.merchantId } });
         await createControl(actor(who), {
           merchantId: c.merchantId,
@@ -616,6 +618,16 @@ async function main() {
   }
   const ncase = await db.case.findFirst({ where: { merchantId: nimbus, type: "DISPUTE_SPIKE", status: { not: "RESOLVED" } } });
   if (ncase) await assignCase(ncase.id, users.rina.id, actor("laura"));
+
+  // Demo staging: the story cases are today's work. Their alerts started weeks ago (that is the
+  // story), but the open cases are put within SLA from today, whatever time of day the demo is
+  // opened (the sim clock uses the real time of day), so the queues read as a live day.
+  const hoursBy = { CRITICAL: DEFAULT_POLICY.sla.CRITICAL, HIGH: DEFAULT_POLICY.sla.HIGH, MEDIUM: DEFAULT_POLICY.sla.MEDIUM, LOW: DEFAULT_POLICY.sla.LOW_BUSINESS_DAYS * 24 } as const;
+  const storyCases = await db.case.findMany({ where: { merchantId: { in: [...storyIds] }, status: { not: "RESOLVED" } } });
+  for (const c of storyCases) {
+    await db.case.update({ where: { id: c.id }, data: { slaDueAt: new Date(addDays(T, 1).getTime() + hoursBy[c.priority] * 3_600_000), slaBreachedAt: null } });
+    await db.notification.deleteMany({ where: { dedupeKey: `SLA:${c.id}` } });
+  }
 
   // Today -----------------------------------------------------------------------------------
   await setSimToday(T);

@@ -22,8 +22,10 @@ import {
   Moon,
   Sun,
   LogOut,
+  Users,
 } from "lucide-react";
 import { Mark } from "./Mark";
+import { DemoCalendar } from "./DemoCalendar";
 import { Avatar } from "@/components/ui/badges";
 
 type Item = { href: string; label: string; icon: React.ReactNode; count?: number; alarm?: boolean; match?: string };
@@ -34,12 +36,14 @@ export function Sidebar({
   counts,
   caps,
   today,
+  demo,
   signOutAction,
 }: {
   user: { name: string; roleLabel: string };
   counts: { mine: number; unassigned: number; alerts: number; awaiting: number; breaching: number; std: number; enh: number; approvals: number };
   caps: { rules: boolean; audit: boolean; admin: boolean; approvals: boolean; underwriting: boolean };
   today: string;
+  demo: { mock: boolean; canAdvance: boolean };
   signOutAction: () => Promise<void>;
 }) {
   const path = usePathname();
@@ -121,15 +125,17 @@ export function Sidebar({
           </div>
         ))}
         <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div className="meta" style={{ padding: "0 8px 10px" }} title="The demo runs on a simulated calendar; npm run demo:advance-day moves it on.">
-            Today {today} · simulated
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px", borderRadius: 8 }}>
-            <Avatar name={user.name} size={28} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="truncate" style={{ fontWeight: 500 }}>{user.name}</div>
-              <div className="meta truncate">{user.roleLabel}</div>
-            </div>
+          <DemoCalendar today={today} canAdvance={demo.canAdvance} demo={demo.mock} />
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 0", borderRadius: 8 }}>
+            <Link href="/login?switch=1" className="persona-switch" title="Switch persona" data-testid="switch-persona">
+              <Avatar name={user.name} size={28} />
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span className="truncate" style={{ display: "block", fontWeight: 500 }}>{user.name}</span>
+                <span className="meta truncate" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {user.roleLabel} <Users aria-hidden style={{ width: 12, height: 12 }} />
+                </span>
+              </span>
+            </Link>
             <ThemeToggle />
             <form action={signOutAction}>
               <button className="btn ghost sm" aria-label="Sign out" title="Sign out">

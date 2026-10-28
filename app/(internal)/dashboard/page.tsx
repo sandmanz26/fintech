@@ -11,6 +11,7 @@ import { BandPill, SeverityPill, SlaText } from "@/components/ui/badges";
 import { RowLink } from "@/components/ui/RowLink";
 import { CONTROL_LABEL } from "@/lib/domain/controls/text";
 import { MarkRead } from "@/components/shell/MarkRead";
+import { DemoGuide } from "@/components/shell/DemoGuide";
 import { portfolioSummary } from "@/lib/queries/portfolio";
 import { formatMoney } from "@/lib/money";
 import { fmtPct } from "@/lib/format";
@@ -177,6 +178,7 @@ export default async function Dashboard() {
         </div>
 
         <div className="col">
+          <DemoGuide role={user.role} />
           <section className="panel" aria-labelledby="nt-h">
             <header><h2 id="nt-h">For you</h2>{notes.length ? <MarkRead ids={notes.map((n) => n.id)} /> : null}</header>
             {notes.length ? (

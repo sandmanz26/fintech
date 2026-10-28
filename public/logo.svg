@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" role="img" aria-label="Sentinel">
+  <rect width="32" height="32" rx="7.5" fill="#141414"/>
+  <path d="M16 4.4 26.2 8V15.7c0 5.9-4.1 10.3-10.2 12.3C9.9 26 5.8 21.6 5.8 15.7V8z" fill="#fff"/>
+  <rect x="10.4" y="10.9" width="11.2" height="2.6" rx="1.3" fill="#141414"/>
+  <rect x="10.4" y="15.5" width="7" height="2.6" rx="1.3" fill="#1d5fbf"/>
+  <circle cx="20.6" cy="16.8" r="1.65" fill="#1d5fbf"/>
+  <rect x="12.3" y="20.1" width="7.4" height="2.6" rx="1.3" fill="#141414"/>
+  <text x="44" y="23" font-family="Geist, Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="-0.4" fill="#141414">Sentinel</text>
+</svg>

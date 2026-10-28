@@ -30,24 +30,37 @@ npm run demo:advance-day -- --days 30    # several days
 npm run worker                           # the pg-boss worker with the real schedules
 ```
 
-## Deploy to Vercel
+## Demo mode: no database needed
 
-The app needs a hosted Postgres; Vercel cannot reach a database on your machine.
+Without `DATABASE_URL`, Sentinel runs on an embedded Postgres (PGlite, Postgres compiled to
+WebAssembly) loaded from a snapshot of the seeded mock data: 200 fictional merchants, 120 days of
+daily metrics, the last 45 days of raw transactions (~180k), disputes, fraud reports, cases,
+alerts and an intact audit chain. Every service, rule, approval and audit check runs unchanged.
+Changes live in memory and reset when the server restarts.
 
-1. Create a Postgres 16 database (Neon, Supabase or Vercel Postgres). About 200 MB after seeding.
-2. In Vercel, Project → Settings → Environment Variables, set:
-   - `DATABASE_URL`: the pooled connection string, with `?sslmode=require` if the provider asks for it
-   - `AUTH_SECRET`: `openssl rand -base64 32`
-   - `AUTH_TRUST_HOST`: `true`
-3. Redeploy. The `vercel-build` script runs `prisma generate`, `prisma migrate deploy` and `next build`.
-4. Seed once from your machine, pointing at the hosted database:
-   `DATABASE_URL="<hosted url>" npm run seed:only` (~90 s).
-5. Move the demo calendar from your machine the same way: `DATABASE_URL="<hosted url>" npm run demo:advance-day`.
-   The pg-boss worker is a long-running process and does not run on Vercel.
+```bash
+npm run mock:build     # build .mock-db/sentinel.tar.gz (~100 s, 22 MB)
+npm run dev:mock       # or: SENTINEL_MOCK=1 next start
+npm run test:demo      # the demo journey end to end, with no database
+```
 
-Without `AUTH_SECRET` every page answers with a plain "Sentinel is not configured" message. Uploads
-from the merchant portal go to `/tmp` on Vercel and do not survive a cold start; use object storage
-for anything beyond a demo.
+The sign-in page leads with the five stories: each button signs in as the right person and opens
+the screen where the work starts. The dashboard's demo guide tracks each story and hands the next
+step to the next person ("Continue as Laura"). **Next day** in the sidebar simulates a day of
+trading and runs every daily job.
+
+### Deploy to Vercel
+
+Import the repository and deploy; no environment variables are needed. The `vercel-build` script
+builds the mock database snapshot when `DATABASE_URL` is absent, and the app starts in demo mode
+(first request on a cold instance: about 1.5 s to load the snapshot).
+
+For a real database instead, set `DATABASE_URL` (hosted Postgres 16), `AUTH_SECRET`
+(`openssl rand -base64 32`) and `AUTH_TRUST_HOST=true`; the build then runs `prisma migrate
+deploy`. Seed once from your machine with `DATABASE_URL="<url>" npm run seed:only`.
+
+Limits of demo mode on serverless: each instance holds its own copy, so changes can differ
+between instances under load and disappear on a cold start; merchant-portal uploads go to `/tmp`.
 
 ## The five stories
 

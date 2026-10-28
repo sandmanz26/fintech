@@ -1,8 +1,12 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@prisma/client";
+import { isMockMode } from "./lib/mode";
 
 /** Edge-safe part of the Auth.js config (no database access), shared with middleware. */
 export const authConfig = {
+  // Demo mode (no database, fictional data, persona login) works without configuration; a real
+  // deployment must set AUTH_SECRET.
+  secret: process.env.AUTH_SECRET ?? (isMockMode() ? "sentinel-demo-mode-not-for-production-use" : undefined),
   pages: { signIn: "/login" },
   session: { strategy: "jwt", maxAge: 60 * 60 * 10 },
   trustHost: true,

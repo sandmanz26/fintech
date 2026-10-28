@@ -11,3 +11,6 @@ test-results
 next-env.d.ts
 .taste-skill
 .next-e2e
+.mock-db
+.next-vt
+.next-demo
