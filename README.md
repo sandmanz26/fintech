@@ -56,9 +56,10 @@ with `vercel build` from a clean checkout and no environment. The `vercel-build`
 builds the mock database snapshot when `DATABASE_URL` is absent, and the app starts in demo mode
 (first request on a cold instance: about 1.5 s to load the snapshot).
 
-For a real database instead, set `DATABASE_URL` (hosted Postgres 16), `AUTH_SECRET`
-(`openssl rand -base64 32`) and `AUTH_TRUST_HOST=true`; the build then runs `prisma migrate
-deploy`. Seed once from your machine with `DATABASE_URL="<url>" npm run seed:only`.
+For a real database instead, set `SENTINEL_MODE=database`, `DATABASE_URL` (hosted Postgres 16),
+`AUTH_SECRET` (`openssl rand -base64 32`) and `AUTH_TRUST_HOST=true`; the build then runs
+`prisma migrate deploy`. Without `SENTINEL_MODE=database`, a Vercel deployment stays in demo mode
+and ignores any `DATABASE_URL`. Seed once from your machine with `DATABASE_URL="<url>" npm run seed:only`.
 
 Limits of demo mode on serverless: each instance holds its own copy, so changes can differ
 between instances under load and disappear on a cold start; merchant-portal uploads go to `/tmp`.

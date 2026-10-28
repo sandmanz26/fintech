@@ -21,7 +21,7 @@ await server.start();
 // Async on purpose: the socket server answers on this process's event loop.
 const run = (cmd, args) =>
   new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, SENTINEL_MOCK: "", DATABASE_URL: url, STORAGE_DIR: ".mock-db/storage", LOG_LEVEL: "warn" } });
+    const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, SENTINEL_MOCK: "", SENTINEL_MODE: "database", DATABASE_URL: url, STORAGE_DIR: ".mock-db/storage", LOG_LEVEL: "warn" } });
     child.on("exit", (code) => {
       if (code !== 0) {
         console.error(`${cmd} ${args.join(" ")} failed`);
