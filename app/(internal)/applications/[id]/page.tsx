@@ -16,6 +16,7 @@ import { DecisionPanel } from "@/components/underwriting/DecisionPanel";
 import { DocReview } from "@/components/merchant/DocReview";
 import { simToday } from "@/lib/clock";
 import { isoDay } from "@/lib/domain/reserves/calc";
+import { ApiLink } from "@/components/ui/ApiLink";
 
 export const metadata = { title: "Underwriting review" };
 
@@ -130,7 +131,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                 {m.documents.map((d) => (
                   <div key={d.id} style={{ padding: "8px 0" }}>
                     <div className="row-gap" style={{ justifyContent: "space-between" }}>
-                      <a className="link" href={`/api/v1/documents/${d.id}/file`} target="_blank" rel="noreferrer">{humanize(d.type)}</a>
+                      <ApiLink className="link" path={`/documents/${d.id}/file`} target="_blank" rel="noreferrer">{humanize(d.type)}</ApiLink>
                       <span className={`pill ${d.status === "ACCEPTED" ? "" : d.status === "PENDING_REVIEW" ? "warn" : "neg"}`}>{d.status === "PENDING_REVIEW" ? "To review" : humanize(d.status)}</span>
                     </div>
                     {d.status === "PENDING_REVIEW" && canStd && !decided ? (

@@ -8,4 +8,5 @@ if [ -n "$DATABASE_URL" ] && [ "$SENTINEL_MOCK" != "1" ]; then
 else
   node scripts/build-mock-db.mjs
 fi
+node scripts/gen-api-registry.mjs --check
 npx next build

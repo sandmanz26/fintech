@@ -4,6 +4,7 @@ import { can } from "@/lib/auth/rbac";
 import { simToday } from "@/lib/clock";
 import { fmtDate, humanize } from "@/lib/format";
 import { DocReview } from "@/components/merchant/DocReview";
+import { ApiLink } from "@/components/ui/ApiLink";
 
 export default async function DocumentsTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,7 +47,7 @@ export default async function DocumentsTab({ params }: { params: Promise<{ id: s
                     <td className="n num">{fmtDate(d.uploadedAt, tz)}</td>
                     <td className="n">
                       <div className="row-gap" style={{ justifyContent: "flex-end" }}>
-                        <a className="link" href={`/api/v1/documents/${d.id}/file`} target="_blank" rel="noreferrer">Preview</a>
+                        <ApiLink className="link" path={`/documents/${d.id}/file`} target="_blank" rel="noreferrer">Preview</ApiLink>
                         {canReview && d.status === "PENDING_REVIEW" ? <DocReview docId={d.id} /> : null}
                       </div>
                     </td>

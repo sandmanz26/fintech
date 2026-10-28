@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/money";
 import { fmtDate, fmtPct, humanize } from "@/lib/format";
 import { BandPill, SeverityPill } from "@/components/ui/badges";
 import { CONTROL_LABEL, controlSummary } from "@/lib/domain/controls/text";
+import { ApiLink } from "@/components/ui/ApiLink";
 
 export const metadata = { title: "Portfolio" };
 
@@ -245,7 +246,7 @@ function ReportsMenu() {
       <summary className="btn" style={{ listStyle: "none" }}>Download CSV</summary>
       <div className="menu" style={{ position: "absolute", right: 0, top: 38 }}>
         {reports.map((r) => (
-          <a key={r.key} className="menu-item" href={`/api/v1/reports/${r.key}.csv`} download data-testid={`csv-${r.key}`}>{r.label}</a>
+          <ApiLink key={r.key} className="menu-item" path={`/reports/${r.key}.csv`} download data-testid={`csv-${r.key}`}>{r.label}</ApiLink>
         ))}
       </div>
     </details>

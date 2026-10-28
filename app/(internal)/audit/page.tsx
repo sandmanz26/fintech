@@ -6,6 +6,7 @@ import { auditPage, type AuditFilter } from "@/lib/queries/audit";
 import { fmtDateTime, humanize } from "@/lib/format";
 import { Forbidden } from "@/components/ui/Forbidden";
 import { VerifyIntegrity } from "@/components/audit/VerifyIntegrity";
+import { ApiLink } from "@/components/ui/ApiLink";
 
 export const metadata = { title: "Audit log" };
 
@@ -38,7 +39,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           </div>
         </div>
         <div className="row-gap">
-          <a className="btn" href={`/api/v1/audit/export${qs.size ? `?${qs}` : ""}`} download data-testid="audit-export">Export CSV</a>
+          <ApiLink className="btn" path={`/audit/export${qs.size ? `?${qs}` : ""}`} download data-testid="audit-export">Export CSV</ApiLink>
           {can(user.role, "audit.verify") ? <VerifyIntegrity /> : null}
         </div>
       </div>

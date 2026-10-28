@@ -26,17 +26,6 @@ export const authConfig = {
       session.user.merchantId = (token.merchantId as string | null) ?? null;
       return session;
     },
-    authorized({ auth, request }) {
-      const { pathname } = request.nextUrl;
-      const isPublic =
-        pathname === "/login" ||
-        pathname.startsWith("/portal") ||
-        pathname.startsWith("/api/v1/portal") ||
-        pathname.startsWith("/api/auth");
-      if (isPublic) return true;
-      if (pathname.startsWith("/api/")) return true; // route handlers return JSON 401/403 themselves
-      return !!auth?.user;
-    },
   },
 } satisfies NextAuthConfig;
 

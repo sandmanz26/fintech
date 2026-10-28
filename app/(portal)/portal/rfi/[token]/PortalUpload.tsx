@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiRaw, inDemo } from "@/lib/client";
 
 export function PortalUpload({ token, itemKey, label, received }: { token: string; itemKey: string; label: string; received: boolean }) {
   const router = useRouter();
@@ -9,8 +10,10 @@ export function PortalUpload({ token, itemKey, label, received }: { token: strin
   const [state, setState] = useState<{ kind: "idle" | "busy" | "err" | "ok"; text?: string }>({ kind: "idle" });
   async function onPick(f: File | undefined) {
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) {
-      setState({ kind: "err", text: "That file is over 10 MB." });
+    // The demo runs on serverless functions, which accept request bodies up to about 4.5 MB.
+    const maxMb = inDemo() ? 4 : 10;
+    if (f.size > maxMb * 1024 * 1024) {
+      setState({ kind: "err", text: `That file is over ${maxMb} MB.` });
       return;
     }
     setState({ kind: "busy" });
@@ -18,9 +21,9 @@ export function PortalUpload({ token, itemKey, label, received }: { token: strin
     form.set("itemKey", itemKey);
     form.set("file", f);
     try {
-      const res = await fetch(`/api/v1/portal/rfi/${token}/upload`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? "Upload failed.");
+      const res = await apiRaw(`/portal/rfi/${token}/upload`, { method: "POST", body: form });
+      const data = res.text ? JSON.parse(res.text) : null;
+      if (res.status >= 400) throw new Error(data?.error?.message ?? "Upload failed.");
       setState({ kind: "ok", text: `${f.name} uploaded.` });
       router.refresh();
     } catch (e) {

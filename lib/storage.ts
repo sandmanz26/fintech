@@ -13,9 +13,12 @@ export interface StorageAdapter {
 // fine for a demo, not for production documents.
 const root = path.resolve(process.env.STORAGE_DIR ?? (process.env.VERCEL ? "/tmp/sentinel-storage" : "./storage"));
 
-function safePath(key: string) {
-  const p = path.resolve(root, key);
-  if (!p.startsWith(root + path.sep)) throw new Error("Invalid storage key");
+// Demo mode: documents created by the seed ship read-only inside the mock database folder.
+const bundled = path.resolve(process.cwd(), ".mock-db", "storage");
+
+function safePath(key: string, base = root) {
+  const p = path.resolve(base, key);
+  if (!p.startsWith(base + path.sep)) throw new Error("Invalid storage key");
   return p;
 }
 
@@ -28,15 +31,26 @@ export const storage: StorageAdapter = {
     return key;
   },
   async get(key) {
-    return readFile(safePath(key));
+    try {
+      return await readFile(safePath(key));
+    } catch (e) {
+      try {
+        return await readFile(safePath(key, bundled));
+      } catch {
+        throw e;
+      }
+    }
   },
   async exists(key) {
-    try {
-      await stat(safePath(key));
-      return true;
-    } catch {
-      return false;
+    for (const base of [root, bundled]) {
+      try {
+        await stat(safePath(key, base));
+        return true;
+      } catch {
+        // try the next location
+      }
     }
+    return false;
   },
 };
 

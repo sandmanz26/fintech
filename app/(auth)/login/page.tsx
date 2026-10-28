@@ -30,7 +30,7 @@ const STATE: Record<StoryState, { cls: string; label: string }> = {
   done: { cls: "", label: "Done" },
 };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; denied?: string; switch?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; denied?: string; switch?: string; callbackUrl?: string }> }) {
   const sp = await searchParams;
   const me = await getSessionUser();
   // ?switch=1 keeps the page open for a signed-in user: signing in again replaces the session.
@@ -93,6 +93,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           {users.map((u, i) => (
             <form key={u.id} action={login} style={{ borderTop: i ? "1px solid var(--rule)" : 0 }}>
               <input type="hidden" name="email" value={u.email} />
+              {sp.callbackUrl ? <input type="hidden" name="next" value={sp.callbackUrl} /> : null}
               <button
                 type="submit"
                 className="login-row"

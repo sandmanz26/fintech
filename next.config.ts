@@ -29,6 +29,8 @@ const config: NextConfig = {
     "/**": [".mock-db/**", "node_modules/@electric-sql/pglite/dist/**", "node_modules/@electric-sql/pglite-socket/dist/**"],
   },
   eslint: { ignoreDuringBuilds: true },
+  // Demo mode sends API calls, portal uploads included, through a server action (lib/demo/bridge.ts).
+  experimental: { serverActions: { bodySizeLimit: "11mb" } },
   devIndicators: false,
   // E2E builds into its own folder so it can run next to `next dev`.
   distDir: process.env.NEXT_DIST_DIR || ".next",

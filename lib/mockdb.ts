@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { MOCK_PORT } from "./mode";
 
 /**
  * Starts the embedded mock database once per server process: PGlite loaded from
@@ -21,10 +20,13 @@ export function startMockDatabase(): Promise<Started> {
       loadDataDir: new Blob([readFileSync(file)]),
       startParams: [...PGlite.defaultStartParams, "-c", "max_wal_size=48MB", "-c", "min_wal_size=32MB"],
     });
-    const server = new PGLiteSocketServer({ db: pg, port: MOCK_PORT, host: "127.0.0.1", maxConnections: 8 });
+    // Port 0: the OS picks a free port, so several server processes can share a machine.
+    const server = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1", maxConnections: 8 });
     await server.start();
+    const addr = (server as unknown as { port: number }).port;
+    process.env.SENTINEL_MOCK_PORT = String(addr);
     const ms = Date.now() - t0;
-    console.log(`[sentinel] demo mode: embedded mock database ready in ${ms} ms`);
+    console.log(`[sentinel] demo mode: embedded mock database ready on :${addr} in ${ms} ms`);
     return { startedAt: Date.now(), ms };
   })();
   return g.__sentinelMock;

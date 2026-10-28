@@ -21,7 +21,7 @@ await server.start();
 // Async on purpose: the socket server answers on this process's event loop.
 const run = (cmd, args) =>
   new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, SENTINEL_MOCK: "", DATABASE_URL: url, LOG_LEVEL: "warn" } });
+    const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, SENTINEL_MOCK: "", DATABASE_URL: url, STORAGE_DIR: ".mock-db/storage", LOG_LEVEL: "warn" } });
     child.on("exit", (code) => {
       if (code !== 0) {
         console.error(`${cmd} ${args.join(" ")} failed`);
@@ -47,7 +47,7 @@ await db.exec("VACUUM FULL");
 await db.exec("ANALYZE");
 for (let i = 0; i < 3; i++) await db.exec("CHECKPOINT");
 const blob = await db.dumpDataDir("gzip");
-mkdirSync(".mock-db", { recursive: true });
+mkdirSync(".mock-db", { recursive: true }); // seeded documents are already in .mock-db/storage
 writeFileSync(".mock-db/sentinel.tar.gz", Buffer.from(await blob.arrayBuffer()));
 console.log(`mock database ready: ${(blob.size / 1e6).toFixed(1)} MB in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 await db.close();

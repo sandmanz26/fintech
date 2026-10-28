@@ -51,7 +51,8 @@ trading and runs every daily job.
 
 ### Deploy to Vercel
 
-Import the repository and deploy; no environment variables are needed. The `vercel-build` script
+Import the repository and deploy; no environment variables, no database, no settings. Verified
+with `vercel build` from a clean checkout and no environment. The `vercel-build` script
 builds the mock database snapshot when `DATABASE_URL` is absent, and the app starts in demo mode
 (first request on a cold instance: about 1.5 s to load the snapshot).
 

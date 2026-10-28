@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
+const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n", "latin1");
 const toast = (page: Page, text: RegExp) => expect(page.getByRole("status").filter({ hasText: text }).first()).toBeVisible();
 
 test("brand assets are served", async ({ request }) => {
@@ -50,4 +51,48 @@ test("demo journey: story from sign-in, four-eyes hand-off, calendar", async ({ 
   await page.getByTestId("advance-day").click();
   await toast(page, /Now Oct 28\. [\d,]+ transactions simulated/);
   await expect(page.getByTestId("demo-calendar")).toContainText("Oct 28, 2026");
+});
+
+test("files and uploads come from the same data the pages show", async ({ page }) => {
+  // S2 as the merchant: request documents, then upload through the portal and see it on the case.
+  await page.goto("/login");
+  await page.getByTestId("start-S2").click();
+  await expect(page).toHaveURL(/\/cases\//);
+  const caseUrl = page.url();
+  await page.getByTestId("start-review").click();
+  await page.getByTestId("open-rfi-form").click();
+  await page.getByTestId("send-rfi").click();
+  const portalUrl = (await page.getByTestId("portal-url").textContent())!.trim();
+  // The merchant, with no session, opens the link and uploads.
+  const merchant = await page.context().browser()!.newContext();
+  const portal = await merchant.newPage();
+  await portal.goto(new URL(portalUrl, page.url()).pathname);
+  await portal.getByTestId("upload-invoice").setInputFiles({ name: "invoices-oct.pdf", mimeType: "application/pdf", buffer: PDF });
+  await expect(portal.getByRole("heading", { name: "Thank you, we have everything" })).toBeVisible();
+  await merchant.close();
+  // The analyst sees the upload on the case, and it opens.
+  await page.goto(caseUrl);
+  await expect(page.getByText("invoices-oct.pdf").first()).toBeVisible();
+
+  // A CSV export downloads.
+  await page.goto("/login?switch=1");
+  await page.getByTestId("login-RISK_MANAGER").click();
+  await page.goto("/reports");
+  await page.getByText("Download CSV").click();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("csv-active-controls").click()]);
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
+});
+
+test("a seeded document opens from the bundled snapshot", async ({ page, context }) => {
+  await page.goto("/login");
+  await page.getByTestId("start-S1").click();
+  await expect(page).toHaveURL(/\/applications\//);
+  // Headless Chromium hands a PDF in a new tab to the download manager; a real browser shows it.
+  const [popup] = await Promise.all([context.waitForEvent("page"), page.getByRole("link", { name: "Bank statement" }).first().click()]);
+  const download = await popup.waitForEvent("download");
+  const file = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const c of file) chunks.push(c as Buffer);
+  expect(Buffer.concat(chunks).subarray(0, 5).toString()).toBe("%PDF-");
+  await expect(page.getByRole("alert").filter({ hasText: /Not found|Could not/ })).toHaveCount(0);
 });
