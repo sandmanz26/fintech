@@ -19,6 +19,13 @@ export async function apiRaw(path: string, init: { method?: string; body?: unkno
   if (inDemo()) {
     const { invokeApi } = await import("@/lib/demo/bridge");
     const r = await invokeApi(method, path, init.body);
+    // The page came from one copy of the demo data and this answer from another: the server was
+    // restarted (serverless hosts recycle idle instances) and the data went back to the start.
+    const seen = document.documentElement.dataset.demoInstance;
+    if (r.instance && seen && r.instance !== seen) {
+      document.documentElement.dataset.demoInstance = r.instance;
+      window.dispatchEvent(new CustomEvent("sentinel:demo-reset"));
+    }
     const blob = r.base64 !== undefined ? new Blob([Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))], { type: r.contentType }) : undefined;
     return { status: r.status, contentType: r.contentType, text: r.text, blob, filename: r.filename };
   }

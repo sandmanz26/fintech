@@ -295,3 +295,6 @@ textarea.input { height: auto; min-height: 76px; padding: 8px 10px; resize: vert
 .persona-switch { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; color: inherit; text-decoration: none; }
 .persona-switch:hover { background: var(--active); }
 .persona-switch:focus-visible { outline: 2px solid var(--data); outline-offset: 1px; }
+
+/* Read-only editors: hide the editing buttons instead of showing ones that do nothing. */
+fieldset.readonly button { display: none; }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN } from "@/components/ui/Required";
 import type { PolicyParams } from "@/lib/domain/policy/types";
 
 type Field = { path: string[]; label: string; unit: string; scale?: number; hint?: string; fraction?: boolean };
@@ -68,7 +69,9 @@ export function PolicyEditor({ params, version, canWrite }: { params: PolicyPara
   };
   const payload = () => (json !== null ? JSON.parse(json) : draft);
 
+  const reqNote = useRequired("pol-note");
   async function post(dryRun: boolean) {
+    if (!dryRun && !reqNote.check(note.trim().length >= NOTE_MIN, "Write what changed and why. Every policy version keeps its change note.")) return;
     setBusy(true);
     try {
       const r = await api<{ moves: Record<string, number>; checked: number }>("/admin/policies", { body: { params: payload(), changeNote: note || "dry run", dryRun } });
@@ -94,7 +97,10 @@ export function PolicyEditor({ params, version, canWrite }: { params: PolicyPara
         </div>
         <button className="link meta" onClick={() => setJson(json === null ? JSON.stringify(draft, null, 2) : null)}>{json === null ? "Edit all as JSON" : "Back to the form"}</button>
       </header>
-      <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0 }}>
+      {!canWrite ? (
+        <div className="notice info" style={{ marginBottom: 12 }}>Read-only for your role: the head of risk or an admin changes policy.</div>
+      ) : null}
+      <fieldset disabled={!canWrite} className={canWrite ? undefined : "readonly"} style={{ border: 0, margin: 0, padding: 0 }}>
         {json === null ? (
           <div style={{ display: "grid", gap: 18 }}>
             {FIELDS.map((g) => (
@@ -131,9 +137,10 @@ export function PolicyEditor({ params, version, canWrite }: { params: PolicyPara
             </div>
             <div className="field">
               <label htmlFor="pol-note">Change note (required)</label>
-              <textarea id="pol-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What changed and why" />
+              <textarea id="pol-note" className="input" value={note} onChange={(e) => (setNote(e.target.value), reqNote.clear())} placeholder="What changed and why" />
+              <FieldHint error={reqNote.error} />
             </div>
-            <button type="button" className="btn primary" disabled={busy || note.trim().length < 3} onClick={() => post(false)}>Save as v{version + 1}</button>
+            <button type="button" className="btn primary" disabled={busy} onClick={() => post(false)}>Save as v{version + 1}</button>
           </div>
         ) : null}
       </fieldset>

@@ -57,7 +57,10 @@ test("Rules Studio: backtest is fast and a version needs a change note", async (
   await page.getByTestId("run-backtest").click();
   await expect(page.getByTestId("backtest-result")).toBeVisible();
   expect(Date.now() - t0).toBeLessThan(10_000);
-  await expect(page.getByTestId("save-rule")).toBeDisabled();
+  // Saving without a change note says so, next to the field.
+  await page.getByTestId("save-rule").click();
+  await expect(page.getByTestId("field-error")).toContainText("Write what changed and why");
+  expect(sql(`select count(*) from "RuleVersion" where "ruleId"='${ruleId}'`)).toBe("1");
   await page.getByTestId("change-note").fill("Lower absolute floor to $2,500 to catch smaller merchants.");
   await page.getByTestId("save-rule").click();
   await expect(page.getByText("v2").first()).toBeVisible();

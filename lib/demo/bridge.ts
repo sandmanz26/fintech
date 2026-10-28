@@ -12,7 +12,7 @@ import { isMockMode } from "@/lib/mode";
  * page function, and calls the very same route handler there: same validation, RBAC and audit.
  */
 
-export type BridgeResult = { status: number; contentType: string; text?: string; base64?: string; filename?: string };
+export type BridgeResult = { status: number; contentType: string; text?: string; base64?: string; filename?: string; instance?: string };
 
 function match(pathname: string): { methods: (typeof API_ROUTES)[number]["methods"]; params: Record<string, string> } | null {
   const parts = pathname.split("/").filter(Boolean);
@@ -35,6 +35,12 @@ function match(pathname: string): { methods: (typeof API_ROUTES)[number]["method
 }
 
 export async function invokeApi(method: string, path: string, payload?: unknown): Promise<BridgeResult> {
+  const { DEMO_INSTANCE } = await import("@/lib/mockdb");
+  const r = await run(method, path, payload);
+  return { ...r, instance: DEMO_INSTANCE };
+}
+
+async function run(method: string, path: string, payload?: unknown): Promise<BridgeResult> {
   if (!isMockMode()) return { status: 404, contentType: "application/json", text: JSON.stringify({ error: { code: "NOT_FOUND", message: "The demo bridge only runs in demo mode." } }) };
   const url = new URL(`/api/v1${path}`, "http://sentinel.local");
   const route = match(url.pathname.replace(/^\/api\/v1/, ""));

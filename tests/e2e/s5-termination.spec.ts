@@ -26,7 +26,9 @@ test("S5: termination, compliance approval, dispute window, reconciliation", asy
   await dlg.getByLabel("Reason").selectOption("MERCHANT_REQUEST");
   await expect(dlg.getByTestId("listing-consequence")).toContainText("not listed");
   await dlg.getByLabel("Reason").selectOption("COMPLIANCE");
-  await expect(dlg.getByTestId("terminate-submit")).toBeDisabled();
+  // Submitting before typing the name explains what is missing instead of doing nothing.
+  await dlg.getByTestId("terminate-submit").click();
+  await expect(dlg.getByTestId("field-error")).toContainText("Type “Nimbus Supplements” exactly");
   await dlg.getByLabel("Type the merchant's name to confirm").fill("Nimbus Supplements");
   await dlg.getByTestId("terminate-submit").click();
   await expectToast(page, /Termination sent for approval/);

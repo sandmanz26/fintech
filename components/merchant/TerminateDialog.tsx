@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN } from "@/components/ui/Required";
 import { TERMINATION_CATEGORIES, type TerminationCategory } from "@/lib/domain/offboarding/categories";
 
 const CODES: Record<TerminationCategory, string> = {
@@ -27,9 +28,12 @@ export function TerminateDialog({ merchantId, merchantName, reasons, open, onOpe
   const [busy, setBusy] = useState(false);
   const { code, listed } = CATEGORIES.find((c) => c.key === cat)!;
   const text = reasons.find((r) => r.code === code)?.merchantFacingText;
-  const ok = note.trim().length >= 3 && confirm.trim().toLowerCase() === merchantName.toLowerCase();
 
+  const reqNote = useRequired("tnote");
+  const reqName = useRequired("confirm");
   async function submit() {
+    if (!reqNote.check(note.trim().length >= NOTE_MIN, "Write the evidence the approver should see.")) return;
+    if (!reqName.check(confirm.trim().toLowerCase() === merchantName.toLowerCase(), `Type “${merchantName}” exactly to confirm. Termination stops processing.`)) return;
     setBusy(true);
     try {
       await api(`/merchants/${merchantId}/terminate`, { body: { reasonCategory: cat, reasonCode: code, note, caseId } });
@@ -66,7 +70,8 @@ export function TerminateDialog({ merchantId, merchantName, reasons, open, onOpe
             </div>
             <div className="field">
               <label htmlFor="tnote">Evidence, for the approver</label>
-              <textarea id="tnote" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What you found, with dates and figures" />
+              <textarea id="tnote" className="input" value={note} onChange={(e) => (setNote(e.target.value), reqNote.clear())} placeholder="What you found, with dates and figures" />
+              <FieldHint error={reqNote.error} />
             </div>
             <div className={listed ? "notice" : "notice info"} data-testid="listing-consequence">
               {listed
@@ -79,12 +84,13 @@ export function TerminateDialog({ merchantId, merchantName, reasons, open, onOpe
             </div>
             <div className="field">
               <label htmlFor="confirm">Type the merchant&apos;s name to confirm</label>
-              <input id="confirm" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={merchantName} autoComplete="off" />
+              <input id="confirm" className="input" value={confirm} onChange={(e) => (setConfirm(e.target.value), reqName.clear())} placeholder={merchantName} autoComplete="off" />
+              <FieldHint error={reqName.error} />
             </div>
           </div>
           <div className="drawer-foot">
             <Dialog.Close className="btn">Cancel</Dialog.Close>
-            <button className="btn danger" disabled={!ok || busy} onClick={submit} data-testid="terminate-submit">
+            <button className="btn danger" disabled={busy} onClick={submit} data-testid="terminate-submit">
               {busy ? "Sending…" : "Send for approval"}
             </button>
           </div>

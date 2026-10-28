@@ -7,6 +7,9 @@ import path from "node:path";
  * talks to it like any Postgres. Called from instrumentation.ts before the first request.
  */
 type Started = { startedAt: number; ms: number };
+
+/** Identifies this server's copy of the demo data; a new one means the data was reset. */
+export const DEMO_INSTANCE = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const g = globalThis as unknown as { __sentinelMock?: Promise<Started> };
 
 export function startMockDatabase(): Promise<Started> {

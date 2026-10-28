@@ -3,7 +3,12 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { themePref } from "@/lib/session";
 import { isMockMode } from "@/lib/mode";
+import { DEMO_INSTANCE } from "@/lib/mockdb";
+import { DemoResetNotice } from "@/components/shell/DemoResetNotice";
 import "./globals.css";
+
+// Demo actions (a simulated day, an approval) can take a few seconds on a cold serverless instance.
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: { default: "Sentinel", template: "%s · Sentinel" },
@@ -13,7 +18,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = await themePref();
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme={theme === "system" ? undefined : theme} data-demo={isMockMode() ? "1" : undefined} suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme={theme === "system" ? undefined : theme} data-demo={isMockMode() ? "1" : undefined} data-demo-instance={isMockMode() ? DEMO_INSTANCE : undefined} suppressHydrationWarning>
       <head>
         {/* Follow the OS theme when no preference is stored, before first paint. */}
         {theme === "system" ? (
@@ -24,7 +29,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           />
         ) : null}
       </head>
-      <body>{children}</body>
+      <body>
+        {isMockMode() ? <DemoResetNotice /> : null}{children}</body>
     </html>
   );
 }

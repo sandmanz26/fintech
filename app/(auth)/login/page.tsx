@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -47,7 +48,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <Mark size={28} />
           <span style={{ fontSize: 18, fontWeight: 600 }}>Sentinel</span>
           <span className="muted">Kestrel Pay · merchant risk</span>
+          <Link href="/guide" className="btn sm" style={{ marginLeft: "auto" }} data-testid="guide-link">How it works</Link>
         </div>
+        <p style={{ margin: "0 0 24px", fontSize: 15, lineHeight: "22px" }}>
+          Sentinel is where a payment company&apos;s risk team decides which shops may accept card payments, watches them every day, and acts when something looks wrong. <Link className="link" href="/guide">New here? Read the two-minute guide.</Link>
+        </p>
         {sp.error ? <p className="notice neg" style={{ marginBottom: 16 }}>That account could not be signed in.</p> : null}
         {sp.denied ? <p className="notice" style={{ marginBottom: 16 }}>Merchant accounts use the link in their email instead of this screen.</p> : null}
         {me && sp.switch ? <p className="notice info" style={{ marginBottom: 16 }}>Signed in as {me.name}. Pick a story or a persona to switch.</p> : null}

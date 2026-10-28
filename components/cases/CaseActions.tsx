@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN, noteMessage } from "@/components/ui/Required";
 import { TerminateDialog } from "@/components/merchant/TerminateDialog";
 
 type Reason = { code: string; label: string; merchantFacingText: string; category: string };
@@ -187,7 +188,9 @@ function RfiForm({ caseId, today, onSent, onCancel }: { caseId: string; today: s
   const [message, setMessage] = useState("We noticed a change in your recent sales and want to make sure your account keeps running smoothly. Please send us the documents below.");
   const [due, setDue] = useState(plusDays(today, 5));
   const [busy, setBusy] = useState(false);
+  const req = useRequired("rfi-docs");
   async function send() {
+    if (!req.check(items.length > 0, "Tick at least one document to request.")) return;
     setBusy(true);
     try {
       const r = await api<{ portalUrl: string }>(`/cases/${caseId}/rfi`, {
@@ -203,14 +206,15 @@ function RfiForm({ caseId, today, onSent, onCancel }: { caseId: string; today: s
   }
   return (
     <div style={{ display: "grid", gap: 10 }} data-testid="rfi-form">
-      <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
+      <fieldset id="rfi-docs" tabIndex={-1} style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
         <legend className="label" style={{ marginBottom: 4 }}>Documents</legend>
         {RFI_ITEMS.map((i) => (
           <label key={i.key} style={{ display: "flex", gap: 8, fontSize: 13 }}>
-            <input type="checkbox" checked={items.includes(i.key)} onChange={(e) => setItems((xs) => (e.target.checked ? [...xs, i.key] : xs.filter((x) => x !== i.key)))} />
+            <input type="checkbox" checked={items.includes(i.key)} onChange={(e) => (req.clear(), setItems((xs) => (e.target.checked ? [...xs, i.key] : xs.filter((x) => x !== i.key))))} />
             {i.label}
           </label>
         ))}
+        <FieldHint error={req.error} />
       </fieldset>
       <div className="field">
         <label htmlFor="rfi-m">Message</label>
@@ -222,7 +226,7 @@ function RfiForm({ caseId, today, onSent, onCancel }: { caseId: string; today: s
         <input id="rfi-d" type="date" className="input" min={plusDays(today, 1)} value={due} onChange={(e) => setDue(e.target.value)} />
       </div>
       <div className="row-gap">
-        <button className="btn sm primary" disabled={busy || !items.length} onClick={send} data-testid="send-rfi">Send request</button>
+        <button className="btn sm primary" disabled={busy} onClick={send} data-testid="send-rfi">Send request</button>
         <button className="btn sm ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -235,7 +239,11 @@ function CloseForm({ caseId, reasons, onDone, onCancel }: { caseId: string; reas
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const usable = reasons.filter((r) => !["CR-TERMINATED", "CR-UW-DECIDED", "CR-CONTROL-REMOVED"].includes(r.code));
+  const reqCode = useRequired("cl-code");
+  const reqNote = useRequired("cl-note");
   async function close() {
+    if (!reqCode.check(!!code, "Choose how the case was resolved.")) return;
+    if (!reqNote.check(note.trim().length >= NOTE_MIN, noteMessage)) return;
     setBusy(true);
     try {
       await api(`/cases/${caseId}/transition`, { body: { to: "RESOLVED", reasonCode: code, note } });
@@ -251,19 +259,21 @@ function CloseForm({ caseId, reasons, onDone, onCancel }: { caseId: string; reas
     <div style={{ display: "grid", gap: 10 }}>
       <div className="field">
         <label htmlFor="cl-code">Resolution</label>
-        <select id="cl-code" className="input" value={code} onChange={(e) => setCode(e.target.value)} data-testid="resolution-code">
+        <select id="cl-code" className="input" value={code} onChange={(e) => (setCode(e.target.value), reqCode.clear())} data-testid="resolution-code">
           <option value="">Choose…</option>
           {usable.map((r) => (
             <option key={r.code} value={r.code}>{r.label}</option>
           ))}
         </select>
+        <FieldHint error={reqCode.error} />
       </div>
       <div className="field">
         <label htmlFor="cl-note">Note</label>
-        <textarea id="cl-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What you found and why this closes it" data-testid="resolution-note" />
+        <textarea id="cl-note" className="input" value={note} onChange={(e) => (setNote(e.target.value), reqNote.clear())} placeholder="What you found and why this closes it" data-testid="resolution-note" />
+        <FieldHint error={reqNote.error} hint="Required, for the audit log." />
       </div>
       <div className="row-gap">
-        <button className="btn sm primary" disabled={busy || !code || note.trim().length < 3} onClick={close} data-testid="confirm-close">Close case</button>
+        <button className="btn sm primary" disabled={busy} onClick={close} data-testid="confirm-close">Close case</button>
         <button className="btn sm ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>

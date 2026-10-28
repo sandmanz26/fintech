@@ -96,3 +96,30 @@ test("a seeded document opens from the bundled snapshot", async ({ page, context
   expect(Buffer.concat(chunks).subarray(0, 5).toString()).toBe("%PDF-");
   await expect(page.getByRole("alert").filter({ hasText: /Not found|Could not/ })).toHaveCount(0);
 });
+
+test("buttons explain what is missing; read-only screens say so; the guide explains the product", async ({ page }) => {
+  // The guide is public and linked from sign-in.
+  await page.goto("/login");
+  await page.getByTestId("guide-link").click();
+  await expect(page.getByRole("heading", { name: /decides which shops may take card payments/ })).toBeVisible();
+
+  // Closing a case without a resolution: the click explains instead of doing nothing.
+  await page.goto("/login");
+  await page.getByTestId("start-S5").click();
+  await expect(page).toHaveURL(/\/cases\//);
+  await page.getByTestId("close-case").click();
+  await page.getByTestId("confirm-close").click();
+  await expect(page.getByTestId("field-error")).toContainText("Choose how the case was resolved");
+  await expect(page.getByTestId("resolution-code")).toBeFocused();
+  await page.getByTestId("resolution-code").selectOption({ index: 1 });
+  await page.getByTestId("confirm-close").click();
+  await expect(page.getByTestId("field-error")).toContainText("Write a short reason first");
+
+  // The auditor sees rules read-only, with no editing buttons that would do nothing.
+  await page.goto("/login?switch=1");
+  await page.getByTestId("login-AUDITOR").click();
+  await page.goto("/rules");
+  await page.locator("main a[href^='/rules/']").first().click();
+  await expect(page.getByTestId("rule-readonly")).toContainText("Read-only for your role");
+  await expect(page.getByRole("button", { name: "Add condition" })).toBeHidden();
+});

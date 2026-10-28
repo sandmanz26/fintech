@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { api, ApiError, toMinor, fromMinor } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint } from "@/components/ui/Required";
 
 export type DeclaredProfile = { monthlyMinor: string; ticketMinor: string; deliveryDays: number };
 
@@ -21,9 +22,13 @@ export function ProfileDialog({ merchantId, profile, open, onOpenChange }: { mer
   const t = toMinor(ticket);
   const d = /^\d+$/.test(days) ? Number(days) : null;
   const changed = m !== profile.monthlyMinor || t !== profile.ticketMinor || d !== profile.deliveryDays;
-  const ok = !!m && !!t && d !== null && changed && note.trim().length >= 10;
+  const reqNum = useRequired("pm");
+  const reqNote = useRequired("pn");
 
   async function submit() {
+    if (!reqNum.check(!!m && !!t && d !== null, "Enter amounts like 125000 or 125,000.50 and whole days.")) return;
+    if (!reqNum.check(changed, "Nothing changed yet: edit at least one figure.")) return;
+    if (!reqNote.check(note.trim().length >= 10, "Say what evidence supports the new profile (at least 10 characters).")) return;
     setBusy(true);
     try {
       const r = await api<{ score: number; band: string; previousBand: string | null }>(`/merchants/${merchantId}/profile`, {
@@ -62,16 +67,18 @@ export function ProfileDialog({ merchantId, profile, open, onOpenChange }: { mer
             </div>
             <div className="field">
               <label htmlFor="pd">Average days to delivery</label>
-              <input id="pd" className="input num" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
+              <input id="pd" className="input num" inputMode="numeric" value={days} onChange={(e) => (setDays(e.target.value), reqNum.clear())} />
+              <FieldHint error={reqNum.error} />
             </div>
             <div className="field">
               <label htmlFor="pn">Evidence, for the file</label>
-              <textarea id="pn" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="For example: three months of processing statements show steady growth to this level" />
+              <textarea id="pn" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="For example: three months of processing statements show steady growth to this level" onInput={() => reqNote.clear()} />
+              <FieldHint error={reqNote.error} />
             </div>
           </div>
           <div className="drawer-foot">
             <Dialog.Close className="btn">Cancel</Dialog.Close>
-            <button className="btn primary" disabled={!ok || busy} onClick={submit} data-testid="profile-submit">
+            <button className="btn primary" disabled={busy} onClick={submit} data-testid="profile-submit">
               {busy ? "Saving…" : "Save and re-score"}
             </button>
           </div>

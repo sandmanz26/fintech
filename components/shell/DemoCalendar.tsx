@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { api, ApiError } from "@/lib/client";
@@ -35,7 +36,7 @@ export function DemoCalendar({ today, canAdvance, demo }: { today: string; canAd
   return (
     <div style={{ padding: "0 8px 10px" }} data-testid="demo-calendar">
       <div className="meta" title="Sentinel runs on a simulated calendar so a day of trading can be replayed on demand.">
-        Today {today} · simulated{demo ? " · demo data" : ""}
+        Today {today} · simulated{demo ? " · demo data" : ""} · <Link className="link" href="/guide">How it works</Link>
       </div>
       {canAdvance ? (
         <button className="btn sm" style={{ marginTop: 8, width: "100%", justifyContent: "center" }} onClick={advance} disabled={busy} data-testid="advance-day" aria-live="polite">

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN } from "@/components/ui/Required";
 import { TimeSeries } from "@/components/charts/TimeSeries";
 import { METRICS, METRIC_KEYS, RuleDefinitionSchema, describeCondition, type RuleDefinition, type Condition, type MetricKey } from "@/lib/domain/rules/dsl";
 
@@ -156,7 +157,13 @@ export function RuleEditor({
     }
   }
 
+  const reqNote = useRequired("r-note");
   async function save() {
+    if (!current.ok) {
+      toast("Fix the definition first: the problems are listed under it.", "err");
+      return;
+    }
+    if (!reqNote.check(note.trim().length >= NOTE_MIN, "Write what changed and why. Every rule version keeps its change note.")) return;
     if (!current.ok) return;
     setBusy("save");
     try {
@@ -187,7 +194,12 @@ export function RuleEditor({
             <button type="button" aria-pressed={tab === "json"} onClick={() => switchTab("json")} data-testid="json-tab">View JSON</button>
           </div>
         </header>
-        <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 14 }}>
+        {!canWrite ? (
+          <div className="notice info" style={{ marginBottom: 12 }} data-testid="rule-readonly">
+            Read-only for your role: only the head of risk changes rules. You can read the definition and run a backtest.
+          </div>
+        ) : null}
+        <fieldset disabled={!canWrite} className={canWrite ? undefined : "readonly"} style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 14 }}>
           <div className="grid-1-1">
             <div className="field">
               <label htmlFor="r-name">Name</label>
@@ -375,16 +387,16 @@ export function RuleEditor({
             <h2 id="sv-h" style={{ marginBottom: 10 }}>Save as a new version</h2>
             <div className="field">
               <label htmlFor="r-note">Change note (required)</label>
-              <textarea id="r-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What changed and why" data-testid="change-note" />
+              <textarea id="r-note" className="input" value={note} onChange={(e) => (setNote(e.target.value), reqNote.clear())} placeholder="What changed and why" data-testid="change-note" />
+              <FieldHint error={reqNote.error} />
             </div>
             <label style={{ display: "flex", gap: 8, margin: "10px 0" }}>
               <input type="checkbox" checked={activate} onChange={(e) => setActivate(e.target.checked)} />
               Make it the active version
             </label>
-            <button className="btn primary" disabled={!current.ok || note.trim().length < 3 || busy === "save"} onClick={save} data-testid="save-rule">
+            <button className="btn primary" disabled={busy === "save"} onClick={save} data-testid="save-rule">
               {busy === "save" ? "Saving…" : ruleId ? "Save version" : "Create rule"}
             </button>
-            {note.trim().length < 3 ? <div className="meta" style={{ marginTop: 6 }}>A change note is required before saving.</div> : null}
           </section>
         ) : null}
       </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN, noteMessage } from "@/components/ui/Required";
 
 export function RemoveControl({ controlId, label, needsApproval, reasons }: { controlId: string; label: string; needsApproval: boolean; reasons: { code: string; label: string }[] }) {
   const router = useRouter();
@@ -13,7 +14,9 @@ export function RemoveControl({ controlId, label, needsApproval, reasons }: { co
   const [reason, setReason] = useState(reasons.find((r) => r.code === "CT-REVIEW-COMPLETE")?.code ?? reasons[0]?.code ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const req = useRequired("rm-note");
   async function submit() {
+    if (!req.check(note.trim().length >= NOTE_MIN, noteMessage)) return;
     setBusy(true);
     try {
       const r = await api<{ removed: boolean }>(`/controls/${controlId}`, { method: "DELETE", body: { reasonCode: reason, note } });
@@ -51,12 +54,13 @@ export function RemoveControl({ controlId, label, needsApproval, reasons }: { co
             </div>
             <div className="field">
               <label htmlFor="rm-note">Why</label>
-              <textarea id="rm-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} />
+              <textarea id="rm-note" className="input" value={note} onChange={(e) => (setNote(e.target.value), req.clear())} />
+              <FieldHint error={req.error} hint="Required, for the audit log." />
             </div>
           </div>
           <div className="drawer-foot">
             <Dialog.Close className="btn">Cancel</Dialog.Close>
-            <button className="btn primary" disabled={busy || note.trim().length < 3} onClick={submit}>
+            <button className="btn primary" disabled={busy} onClick={submit}>
               {needsApproval ? "Request removal" : "Remove now"}
             </button>
           </div>

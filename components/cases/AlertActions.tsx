@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN, noteMessage } from "@/components/ui/Required";
 
 export function AlertRowActions({ alertId, reasons }: { alertId: string; merchantId: string; reasons: { code: string; label: string }[] }) {
   const router = useRouter();
@@ -39,7 +40,9 @@ export function DismissAlert({ alertId, reasons, onDone, label = "Dismiss" }: { 
   const [reason, setReason] = useState(reasons[0]?.code ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const req = useRequired(`dn-${alertId}`);
   async function submit() {
+    if (!req.check(note.trim().length >= NOTE_MIN, noteMessage)) return;
     setBusy(true);
     try {
       await api(`/alerts/${alertId}/dismiss`, { body: { reasonCode: reason, note } });
@@ -73,12 +76,13 @@ export function DismissAlert({ alertId, reasons, onDone, label = "Dismiss" }: { 
             </div>
             <div className="field">
               <label htmlFor={`dn-${alertId}`}>Note</label>
-              <textarea id={`dn-${alertId}`} className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What you checked" />
+              <textarea id={`dn-${alertId}`} className="input" value={note} onChange={(e) => (setNote(e.target.value), req.clear())} placeholder="What you checked" />
+              <FieldHint error={req.error} hint="Required: what you checked, for the audit log." />
             </div>
           </div>
           <div className="drawer-foot">
             <Dialog.Close className="btn">Cancel</Dialog.Close>
-            <button className="btn primary" disabled={busy || note.trim().length < 3} onClick={submit}>Dismiss alert</button>
+            <button className="btn primary" disabled={busy} onClick={submit}>Dismiss alert</button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

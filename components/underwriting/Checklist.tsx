@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/client";
 import { useToast } from "@/components/ui/Toast";
+import { useRequired, FieldHint, NOTE_MIN } from "@/components/ui/Required";
 import type { ChecklistItem } from "@/lib/domain/underwriting/checklist";
 
 const TONE: Record<string, string> = { PASS: "", FAIL: "neg", WAIVED: "outline", PENDING: "warn" };
@@ -52,6 +53,7 @@ function Row({ item, applicationId, merchantId, editable, users }: { item: Check
   const toast = useToast();
   const [pending, setPending] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const req = useRequired(`n-${item.key}`);
   const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
   const auto = item.key === "screening_clear";
@@ -89,7 +91,7 @@ function Row({ item, applicationId, merchantId, editable, users }: { item: Check
         <button className="link meta" style={{ marginTop: 6 }} onClick={() => setChanging(true)}>Change</button>
       ) : editable && !auto ? (
         <div className="row-gap" style={{ marginTop: 8 }}>
-          <button className="btn sm" disabled={busy || item.status === "PASS"} onClick={() => save("PASS")} data-testid={`pass-${item.key}`}>Pass</button>
+          <button className="btn sm" disabled={busy || item.status === "PASS"} title={item.status === "PASS" ? "Already passed" : undefined} onClick={() => save("PASS")} data-testid={`pass-${item.key}`}>Pass</button>
           <button className="btn sm ghost" disabled={busy} onClick={() => setPending(pending === "FAIL" ? null : "FAIL")}>Fail</button>
           <button className="btn sm ghost" disabled={busy} onClick={() => setPending(pending === "WAIVED" ? null : "WAIVED")}>Waive</button>
         </div>
@@ -101,9 +103,10 @@ function Row({ item, applicationId, merchantId, editable, users }: { item: Check
       {pending ? (
         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
           <label className="sr-only" htmlFor={`n-${item.key}`}>Note</label>
-          <textarea id={`n-${item.key}`} className="input" style={{ minHeight: 56 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder={pending === "WAIVED" ? "Why this item can be waived (required)" : "What failed"} />
+          <textarea id={`n-${item.key}`} className="input" style={{ minHeight: 56 }} value={note} onChange={(e) => (setNote(e.target.value), req.clear())} placeholder={pending === "WAIVED" ? "Why this item can be waived" : "What failed"} />
+          <FieldHint error={req.error} hint={pending === "WAIVED" ? "Required: why the item can be waived." : undefined} />
           <div className="row-gap">
-            <button className="btn sm primary" disabled={busy || (pending === "WAIVED" && note.trim().length < 3)} onClick={() => save(pending, note)}>
+            <button className="btn sm primary" disabled={busy} onClick={() => (pending !== "WAIVED" || req.check(note.trim().length >= NOTE_MIN, "Say why this item can be waived; the reason is kept with the decision.")) && save(pending, note)}>
               {pending === "WAIVED" ? "Waive item" : "Mark failed"}
             </button>
             <button className="btn sm ghost" onClick={() => setPending(null)}>Cancel</button>

@@ -26,6 +26,15 @@ recorded here. Design decisions are in `DESIGN.md`.
 | No middleware; every internal page (`requireStaff`) and route handler (`route()`) checks the session on the server; sessions last 10 hours from sign-in | Auth.js's middleware refreshed the cookie on every request, including background prefetches; one that started before a persona switch finished after it and restored the previous session (Rina approving as Laura got a 403, about one run in three). Middleware was also the part that failed on Vercel (`MIDDLEWARE_INVOCATION_FAILED`). The pages already enforced sign-in; the gate was redundant. |
 | Story cases are staged within SLA from the demo's first day; most historical cases are worked and closed | A queue where every case is weeks past SLA reads as a broken product, not a busy team. |
 
+## Usability (after a click-through of every button)
+
+| Decision | Why |
+|---|---|
+| Buttons that need input stay enabled and explain what is missing next to the field, then focus it (`components/ui/Required.tsx`) | Approve, reject, dismiss, close, remove, save and terminate were greyed out until a note was typed, with no reason given; in use they read as broken buttons. |
+| Read-only roles see "Read-only for your role" and no editing buttons on rules and policy | The editors showed working-looking buttons inside a disabled form, which did nothing for the auditor and compliance. |
+| A public "How it works" page (`/guide`), linked from sign-in and the sidebar | The product's purpose, lifecycle, people and vocabulary in plain language, for anyone opening the demo cold. |
+| Demo data resets are announced | A serverless host can recycle an idle server; the bridge reports which copy of the data answered, and a change shows a "the demo restarted" notice instead of a failing button. `maxDuration` is 60 s for slow cold starts. |
+
 ## Time and money
 
 | Decision | Why |
