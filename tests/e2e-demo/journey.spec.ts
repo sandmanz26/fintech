@@ -141,3 +141,28 @@ test("the landing page explains the product and leads into the demo", async ({ p
   await page.getByTestId("lp-nav-cta").click();
   await expect(page).toHaveURL(/\/dashboard$/);
 });
+
+test("every case explains itself to a first-time user, in Indonesian or English", async ({ page }) => {
+  // The login page tells each story before you start it.
+  await page.goto("/login");
+  await page.getByTestId("story-more-S4").locator("summary").click();
+  await expect(page.getByTestId("story-more-S4")).toContainText("Glow Subscription Box menjual langganan bulanan");
+
+  // A story case opens with its briefing: what happened, why, and the step that is yours now.
+  await page.getByTestId("start-S4").click();
+  const brief = page.getByTestId("story-briefing");
+  await expect(brief).toContainText("Mendekati batas Visa");
+  await expect(brief).toContainText("Kenapa ini penting");
+  await expect(brief.locator("[aria-current=step]")).toContainText("Dimas");
+  // Switch the explanations to English and back.
+  await brief.getByTestId("lang-toggle").click();
+  await expect(brief).toContainText("Near the Visa line");
+  await brief.getByTestId("lang-toggle").click();
+  await expect(brief).toContainText("Mendekati batas Visa");
+
+  // An ordinary case explains its type and each rule behind it.
+  await page.goto("/queues/unassigned");
+  await page.locator("main a[href^='/cases/']").first().click();
+  const ex = page.getByTestId("case-explainer");
+  await expect(ex).toContainText("Apa kasus ini?");
+});

@@ -17,6 +17,9 @@ import { DismissInline } from "@/components/cases/DismissInline";
 import { isoDay } from "@/lib/domain/reserves/calc";
 import { getActivePolicy } from "@/lib/domain/policy";
 import { CONTROL_LABEL, controlSummary } from "@/lib/domain/controls/text";
+import { StoryBriefing, storyKeyFor } from "@/components/demo/StoryBriefing";
+import { CaseExplainer } from "@/components/demo/CaseExplainer";
+import { isMockMode } from "@/lib/mode";
 
 export const metadata = { title: "Case" };
 
@@ -83,6 +86,13 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      <StoryBriefing registrationNo={m.registrationNo} viewerRole={user.role} />
+      <CaseExplainer
+        caseType={c.type}
+        ruleKeys={c.alerts.map((a) => a.ruleKey)}
+        ruleNames={Object.fromEntries(versions.map((v) => [v.rule.key, v.rule.name]))}
+        open={isMockMode() && !storyKeyFor(m.registrationNo)}
+      />
       <div className="kpis" style={{ marginBottom: 16 }}>
         <div className="kpi">
           <div className="kpi-label">Status</div>

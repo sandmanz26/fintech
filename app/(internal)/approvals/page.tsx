@@ -17,6 +17,7 @@ import { CONTROL_LABEL, controlSummary } from "@/lib/domain/controls/text";
 import { METRICS, type MetricKey } from "@/lib/domain/rules/dsl";
 import { valueLabel } from "@/components/charts/scale";
 import { TERMINATION_CATEGORIES } from "@/lib/domain/offboarding/service";
+import { StoryBriefing } from "@/components/demo/StoryBriefing";
 
 export const metadata = { title: "Approvals" };
 
@@ -44,7 +45,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const name = new Map(users.map((u) => [u.id, u.name]));
   const selectedId = sp.id ?? list[0]?.id;
   const sel = selectedId ? await db.approvalRequest.findUnique({ where: { id: selectedId } }) : null;
-  const merchants = new Map((await db.merchant.findMany({ where: { id: { in: [...list, ...(sel ? [sel] : [])].map((r) => r.merchantId).filter(Boolean) as string[] } }, select: { id: true, dbaName: true, legalName: true, currentBand: true, currentScore: true, currency: true } })).map((m) => [m.id, m]));
+  const merchants = new Map((await db.merchant.findMany({ where: { id: { in: [...list, ...(sel ? [sel] : [])].map((r) => r.merchantId).filter(Boolean) as string[] } }, select: { id: true, dbaName: true, legalName: true, currentBand: true, currentScore: true, currency: true, registrationNo: true } })).map((m) => [m.id, m]));
   const qs = (o: Record<string, string | undefined>) => {
     const p = new URLSearchParams(Object.entries({ view: sp.view, ...o }).filter(([, v]) => v) as [string, string][]);
     return `/approvals${p.size ? `?${p}` : ""}`;
@@ -92,7 +93,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
             </div>
           )}
         </section>
-        {sel ? <Detail req={sel} user={user} tz={tz} name={name} merchant={sel.merchantId ? merchants.get(sel.merchantId) ?? null : null} /> : <section className="panel"><div className="empty">Select a request.</div></section>}
+        {sel ? (
+          <div>
+            {sel.merchantId && merchants.get(sel.merchantId)?.registrationNo ? <StoryBriefing registrationNo={merchants.get(sel.merchantId)!.registrationNo} viewerRole={user.role} /> : null}
+            <Detail req={sel} user={user} tz={tz} name={name} merchant={sel.merchantId ? merchants.get(sel.merchantId) ?? null : null} />
+          </div>
+        ) : <section className="panel"><div className="empty">Select a request.</div></section>}
       </div>
     </>
   );

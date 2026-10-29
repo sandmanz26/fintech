@@ -3,6 +3,7 @@ import { Mark } from "@/components/shell/Mark";
 import { getSessionUser } from "@/lib/session";
 import { isInternal } from "@/lib/auth/rbac";
 import { COPY, type Lang } from "./landing-content";
+import { LangCookie } from "@/components/demo/LangCookie";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -30,6 +31,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           <nav className="lp-nav" aria-label="Landing">
             <a href="#cara-kerja" className="lp-hide-sm">{c.nav.how}</a>
             <Link href={c.nav.langHref} hrefLang={lang === "en" ? "id" : "en"}>{c.nav.lang}</Link>
+            <LangCookie lang={lang} />
             <Link className="btn primary" href={primary.href} data-testid="lp-nav-cta">{signedIn ? c.nav.open : c.nav.demo}</Link>
           </nav>
         </div>

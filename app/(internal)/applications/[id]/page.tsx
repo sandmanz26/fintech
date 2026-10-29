@@ -17,6 +17,9 @@ import { DocReview } from "@/components/merchant/DocReview";
 import { simToday } from "@/lib/clock";
 import { isoDay } from "@/lib/domain/reserves/calc";
 import { ApiLink } from "@/components/ui/ApiLink";
+import { StoryBriefing, storyKeyFor } from "@/components/demo/StoryBriefing";
+import { CaseExplainer } from "@/components/demo/CaseExplainer";
+import { isMockMode } from "@/lib/mode";
 
 export const metadata = { title: "Underwriting review" };
 
@@ -78,6 +81,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         </div>
         <Link className="btn" href={`/merchants/${m.id}`}>Open merchant</Link>
       </div>
+      <StoryBriefing registrationNo={m.registrationNo} viewerRole={user.role} />
+      <CaseExplainer caseType="UNDERWRITING" ruleKeys={[]} ruleNames={{}} open={isMockMode() && !storyKeyFor(m.registrationNo)} />
 
       {decided ? (
         <div className="notice info" style={{ marginBottom: 16 }} data-testid="decided-banner">

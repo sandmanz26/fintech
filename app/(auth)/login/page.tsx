@@ -9,6 +9,8 @@ import type { Role } from "@prisma/client";
 import { guidedStories, type StoryState } from "@/lib/demo/stories";
 import { signInAs } from "@/lib/demo/actions";
 import { isMockMode } from "@/lib/mode";
+import { STORY_BRIEFS, UI, t } from "@/lib/demo/briefings";
+import { briefLang } from "@/lib/demo/lang";
 
 export const metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     guidedStories(),
   ]);
   const byRole = new Map(users.map((u) => [u.role, u]));
+  const lang = await briefLang();
   return (
     <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", padding: "40px 16px" }}>
       <div style={{ width: "min(720px, 100%)" }}>
@@ -75,6 +78,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                   </span>
                   <span className="muted" style={{ display: "block", fontSize: 13, marginTop: 2 }}>{st.summary}</span>
                   <span className="meta" style={{ display: "block", marginTop: 6 }}>{st.next ? `Next: ${st.next.label}` : st.doneText}</span>
+                  {STORY_BRIEFS[st.key as keyof typeof STORY_BRIEFS] ? (
+                    <details className="story-more" data-testid={`story-more-${st.key}`}>
+                      <summary>{lang === "id" ? "Baca ceritanya" : "Read the story"}</summary>
+                      <p><strong>{t(UI.whatHappened, lang)}.</strong> {t(STORY_BRIEFS[st.key as keyof typeof STORY_BRIEFS].situation, lang)}</p>
+                      <p><strong>{t(UI.whyMatters, lang)}.</strong> {t(STORY_BRIEFS[st.key as keyof typeof STORY_BRIEFS].why, lang)}</p>
+                    </details>
+                  ) : null}
                 </span>
                 {st.next && who ? (
                   <form action={login} style={{ flex: "none" }}>
