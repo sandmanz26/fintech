@@ -13,6 +13,9 @@ for (const theme of ["light", "dark"] as const) {
     const someCase = sql(`select id from "Case" where status<>'RESOLVED' order by "createdAt" limit 1`);
     const rule = sql(`select id from "Rule" where key='R-CB-RATIO'`);
     const pages = [
+      "/",
+      "/?lang=en",
+      "/guide",
       "/dashboard",
       "/queues/unassigned",
       "/queues/underwriting-enhanced",

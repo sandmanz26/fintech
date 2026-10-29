@@ -44,7 +44,9 @@ npm run dev:mock       # or: SENTINEL_MOCK=1 next start
 npm run test:demo      # the demo journey end to end, with no database
 ```
 
-The sign-in page leads with the five stories: each button signs in as the right person and opens
+The home page (`/`) is a landing page in Bahasa Indonesia (English on `/?lang=en`): the problem
+a payment aggregator has, the flow of a card payment, what Sentinel does, real screenshots, the
+people, the five stories and a short FAQ. The sign-in page leads with the five stories: each button signs in as the right person and opens
 the screen where the work starts. The dashboard's demo guide tracks each story and hands the next
 step to the next person ("Continue as Laura"). **Next day** in the sidebar simulates a day of
 trading and runs every daily job.

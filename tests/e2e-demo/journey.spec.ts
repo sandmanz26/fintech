@@ -118,8 +118,26 @@ test("buttons explain what is missing; read-only screens say so; the guide expla
   // The auditor sees rules read-only, with no editing buttons that would do nothing.
   await page.goto("/login?switch=1");
   await page.getByTestId("login-AUDITOR").click();
+  await page.waitForURL("**/dashboard");
   await page.goto("/rules");
   await page.locator("main a[href^='/rules/']").first().click();
   await expect(page.getByTestId("rule-readonly")).toContainText("Read-only for your role");
   await expect(page.getByRole("button", { name: "Add condition" })).toBeHidden();
+});
+
+test("the landing page explains the product and leads into the demo", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Pilih toko yang boleh menerima kartu");
+  await expect(page.getByText("Kestrel Pay").first()).toBeVisible();
+  await page.getByRole("link", { name: "English", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Choose which shops may take cards");
+  await page.getByTestId("lp-cta").click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByTestId("stories")).toBeVisible();
+  // Signed in, the landing page offers the workspace instead.
+  await page.getByTestId("login-ANALYST").click();
+  await page.waitForURL("**/dashboard");
+  await page.goto("/");
+  await page.getByTestId("lp-nav-cta").click();
+  await expect(page).toHaveURL(/\/dashboard$/);
 });
